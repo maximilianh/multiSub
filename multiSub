@@ -1,0 +1,677 @@
+#!/usr/bin/env python3
+
+import logging, sys, optparse, os, io
+from collections import defaultdict, OrderedDict
+from os.path import join, basename, dirname, isfile, isdir, expanduser
+from datetime import datetime
+import csv, zipfile
+import textwrap
+from io import StringIO # python2.6 and 3
+
+config = {
+    # three-leter country abbreviation
+    "country" : "USA",
+    # common or scientific name of host
+    "ncbi-host" : "human",
+    "ncbi-genome" : "SARS-CoV-2",
+
+    # bogus values:
+    # overwritten by ~/.multiSub.conf, these bogus values are only there so the script can run 
+    # without a config file
+
+    # for the NCBI Submission XML file
+    "ncbiUser" : "testUser",
+    "contact" : ("Doe", "John", "D"),
+    "email" : "test@test.com",
+    "phone" : "",
+    "authors" : [
+        # format: (lastname, firstname, middle initial)
+        ("Haussler","David", ""),
+        ("Haeussler","Max", ""),
+    ],
+    "affiliation" : {
+        "affil" : "University of California, Santa Cruz",
+        "div" : "Genomics Institute",
+        "city" : "Santa Cruz",
+        "sub" : "CA",
+        "country" : "USA",
+        "street" : "1156 High Street, MS Genomics Institute",
+        "postal-code" : "95064"
+    }
+}
+
+configDone = False
+
+def getConfig():
+    " return config as dict "
+    global config
+    global configDone
+    if not configDone:
+        homeDir = os.path.expanduser('~')
+        cfgFname = join(homeDir, ".multiSub.conf")
+        if isfile(cfgFname):
+            exec(open(cfgFname).read(), config)
+        else:
+            logging.info("%s does not exist. Using default values. Consider running 'curl https://hgwdev.gi.ucsc.edu/~max/multiSub/multiSub.conf > ~/.multiSub.conf'" % cfgFname)
+        configDone = True
+    return config
+
+
+# ==== functions =====
+def parseArgs():
+    " setup logging, parse command line arguments and options. -h shows auto-generated help page "
+    parser = optparse.OptionParser("""usage: %prog [options] [command] [arguments]- prepare genbank submission file
+    Commands:
+        conv faFname tsvFname outDir - converts a fasta + tsv to NCBI format in outDir
+        put outDir - uploads the files in outDir to NCBI
+
+    Examples:
+        
+        multiSub convert seqs.fa seqs.tsv mySub - convert fasta+tsv to NCBI format in mySub/
+        multiSub put mySub - upload NCBI files in mySub to NCBI's FTP server
+    """)
+
+    parser.add_option("-d", "--debug", dest="debug",
+        action="store_true", help="show debug messages")
+    parser.add_option("-s", "--skip", dest="skipFile",
+        action="store", help="file with at least one column with the sequence "
+        "identifier of sequences to remove. Can be the NCBI error report. These "
+        "sequences and their annotations will be skipped.")
+    parser.add_option("", "--skipFa", dest="skipFa", action="store",
+        help="file to write skipped sequences to.")
+    parser.add_option("", "--test", dest="test", action="store_true", help="run tests")
+    (options, args) = parser.parse_args()
+
+    if options.test:
+        import doctest
+        doctest.testmod()
+        sys.exit(1)
+
+    if args==[]:
+        parser.print_help()
+        exit(1)
+
+    if options.debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+        logging.getLogger().setLevel(logging.INFO)
+
+    return args, options
+# ----------- main --------------
+def openFile(fname, mode="rt"):
+    """ opens file, recognizing stdout and stdin and none"""
+    if hasattr(fname, "read") or hasattr(fname, "write"):
+        return fname
+    elif fname.endswith(".gz"):
+        fh = gzip.open(fname, mode)
+    elif fname=="stdout":
+        fh = sys.stdout
+    elif fname=="stdin":
+        fh = sys.stdin
+    elif fname==None or fname.lower()=="none":
+        fh = None
+    else:
+        fh = open(fname, mode)
+    return fh
+
+def parseFastaId(line):
+    " return sequence ID given fasta seq Id line "
+    seqId=line.strip(">").strip()
+    if "|" in seqId:
+        seqId = seqId.split("|")[0]
+    return seqId
+
+def parseFasta(fname):
+  """ Generator: yields sequences as tuple (id, sequence) """
+  logging.info("Reading fasta file %s" % fname)
+  if hasattr(fname, 'read'):
+      ifh = fname
+  elif fname=="stdin":
+      ifh=sys.stdin
+  elif fname.endswith(".gz"):
+      ifh=gzip.open(fname)
+  else:
+      ifh=io.open(fname, "rt", encoding="utf8")
+
+  seqLines = []
+  lastId = None
+
+  for line in ifh:
+          line = line.rstrip("\n\r")
+          if line=="" or line.startswith("#"):
+              continue
+          elif not line.startswith(">"):
+             seqLines.append(line.replace(" ","").strip())
+             continue
+          else:
+             if len(seqLines)!=0: # on first >, seq is empty
+                   faseq = (lastId, "".join(seqLines))
+                   lastId = parseFastaId(line)
+                   seqLines = []
+                   yield faseq
+             else:
+                   if lastId!=None:
+                       sys.stderr.write("warning: when reading fasta file: empty "
+                           "sequence, id: %s\n" % line)
+                   lastId = parseFastaId(line)
+                   seqLines=[]
+
+  # if it's the last sequence in a file, loop will end on the last line
+  if len(seqLines)!=0:
+      faseq = (lastId, "".join(seqLines))
+      yield faseq
+  else:
+      yield (None, None)
+
+def readMetaGisaid(fname):
+    " read meta data in GISAID format and convert to our internal dictionary: meta[isolate] -> dict with date -> date  "
+    from xlrd import open_workbook
+    book = open_workbook(fname,on_demand=True)
+    sheet = book.sheet_by_index(1)
+    headers = [sheet.col_values(i)[0] for i in range(sheet.ncols) if sheet.col_values(i)[0]]
+
+    dateIdx = headers.index("covv_collection_date")
+    isolateIdx = headers.index("covv_virus_name")
+    countryIdx = headers.index("covv_location")
+
+    meta = dict()
+    for row_idx in range(2, sheet.nrows):    # Iterate through rows
+        row = []
+        for cell in sheet.row(row_idx):
+            row.append(cell.value)
+        date = row[dateIdx]
+        isolate = row[isolateIdx]
+        meta[isolate] = OrderedDict()
+        meta[isolate]["isolate"] = isolate
+        meta[isolate]["date"] = date
+        meta[isolate]["country"] = row[countryIdx].split("/")[1].strip()
+    return meta
+
+def errAbort(msg):
+    logging.error(msg)
+    sys.exit(1)
+
+def checkMeta(meta):
+    " throw error if something is malformed "
+    for seqId, m in meta.items():
+        if not "date" in m:
+            logging.error("Meta data row for '%s' does not contain a date field" % seqId)
+        else:
+            year, month, day = m["date"].split("-") # date format is 2019-12-30
+            year = int(year)
+            month = int(month)
+            day = int(day)
+            note = " Note that input date must look like 2019-12-30"
+            if not year > 2019:
+                errAbort(("Meta data row for '%s': year must be > 2019."+note) % seqId)
+            if not month > 0 and not month < 13 :
+                errAbort(("Meta data row for '%s': month must be > 0 and < 13."+note) % seqId)
+            if not day > 0 and not day <= 31 :
+                errAbort(("Meta data row for '%s': day must be > 0 and <= 31."+note) % seqId)
+
+
+def readMeta(fname):
+    """ read meta data in format csv, tsv or xls. return as dict with 'seqId' -> OrderedDict of 'key':'value'
+    Standardize field names to: date and isolate
+    """
+    if fname.endswith(".xls"):
+        meta = readMetaGisaid(fname)
+    else:
+        meta = readMetaText(fname)
+
+    checkMeta(meta)
+    return meta
+
+def readMetaText(fname):
+    """ read csv/tsv table with sequence meta data and return as dict with 'seqId' -> OrderedDict of 'key':'value'
+    Current field names are: "date" and "isolate".
+    Standardize field names to: date and isolate.
+    """
+    headers, rows = parseTable(fname)
+
+    meta = dict()
+    lNo = 0
+    for row in rows:
+        lNo += 1
+        if len(row) != len(headers):
+            logging.error("Line %d: number of fields is not identical to number of header fields. "
+                "Headers are: %s, fields are %s" % (lNo, repr(row), repr(headers)))
+            sys.exit(0)
+
+        seqId = row[0]
+
+        d = OrderedDict()
+        for colIdx in range(1, len(headers)):
+            key = headers[colIdx]
+            d[key] = row[colIdx]
+        meta[seqId] = d
+
+    return meta
+
+def parseTable(fname):
+    " read csv or tsv, return (list headers, list of row-tuples) "
+    logging.info("Parsing tsv or csv file '%s'" % fname)
+
+    sep = "\t"
+    if ".csv" in fname:
+        sep = ","
+    if ".tsv" in fname:
+        sep = "\t"
+
+    headers = None
+    rows = []
+
+    with openFile(fname) as ifh:
+        # sniffer was too unreliable on real files
+        #sample = ifh.read(80)
+        #deduced_dialect = csv.Sniffer().sniff(sample)
+        #reader = csv.reader(ifh, dialect=deduced_dialect)
+        reader = csv.reader(ifh, delimiter=sep, quoting=csv.QUOTE_ALL)
+        for row in reader:
+            if headers is None:
+                headers = row
+            else:
+                if len(row)==0 or row[0]=="":
+                    continue
+                rows.append(row)
+    return headers, rows
+
+def trimSeq(seqId, seq):
+    """ remove initial and final Ns from seq, for Genbank
+    >>> trimSeq("test", "NNNACTGNNN")
+    (6, 'ACTG')
+    >>> trimSeq("test", "ACTGN")
+    (1, 'ACTG')
+    >>> trimSeq("test", "NACTG")
+    (1, 'ACTG')
+    """
+    lowSeq = seq.lower()
+    trimCount = 0
+
+    startPos = 0
+    while lowSeq[startPos]=="n":
+        startPos+=1
+        trimCount += 1
+
+    endPos = len(seq)-1
+    while lowSeq[endPos]=="n":
+        endPos-=1
+        trimCount += 1
+
+    if trimCount != 0:
+        logging.debug("Trimmed %d starting and %d ending nucleotides from seq %s "
+            "(total: %d)" % (startPos, len(seq)-endPos-1, seqId, trimCount))
+    return trimCount, seq[startPos:endPos+1]
+
+def writeFasta(seqs, ofh):
+    " write list of (id, seq) to ofh "
+    outCount = 0
+    for seqId, seq in seqs:
+        ofh.write(u">")
+        ofh.write(seqId)
+        ofh.write(u"\n")
+
+        lines = [seq[i:i + 60] for i in range(0, len(seq), 60)]
+        ofh.write("\n".join(lines))
+        ofh.write(u"\n")
+        outCount += 1
+
+    if "name" in dir(ofh):
+        logging.info("Wrote %d sequences to %s" % (outCount, ofh.name))
+
+def writeMetaTsv(meta, ofh):
+    " write meta information to a tsv file. Assume that all meta keys are identical. "
+    seqId0 = list(meta.keys())[0]
+    headers = meta[seqId0].keys()
+    ofh.write(u"\t".join(headers))
+    ofh.write(u"\n")
+
+    for seqId, metaDict in meta.items():
+        assert(headers==metaDict.keys())
+        vals = metaDict.values()
+        ofh.write(u"\t".join(vals))
+        ofh.write(u"\n")
+
+def metaToGenbank(meta):
+    " convert meta data to genbank format, return as 'seqId' -> dict of 'key:'value'. Changes only the 'key' strings.  "
+    cf = getConfig()
+
+    newMeta = dict()
+    for seqId, seqMeta in meta.items():
+        if " " in seqId:
+            logging.error("Sequence identifier %ss: seqId cannot contain spaces - "
+                "skipping this sequence" % repr(seqId))
+            continue
+
+        if "[" in seqId or "]" in seqId:
+            logging.error("Sequence identifier %s: seqIdcannot contain brackets - "
+                "skipping this sequence" % repr(seqId))
+            continue
+
+        ns = OrderedDict()
+
+        isolate = seqMeta["isolate"]
+
+        date = seqMeta["date"]
+        ns["collection-date"] = date
+
+        if "country" not in seqMeta:
+            ns["country"] = cf["country"]
+        else:
+            ns["country"] = seqMeta["country"]
+
+        ns["host"] = cf["ncbi-host"]
+
+        if not "/" in isolate:
+            # ICTV/CDC format see https://github.com/CDCgov/SARS-CoV-2_Sequencing#submitting
+            logging.debug("No / found in isolate %s. Generating the ICTV format" % isolate)
+            year = date.split("-")[0]
+            country = cf["country"]
+            host = ns["host"]
+            genome = cf["ncbi-genome"]
+            isolate = "%s/%s/%s/%s/%s" % (genome, isolate, host, country, year)
+
+        ns["isolate"] = isolate
+
+        newMeta[seqId] = ns
+
+    return newMeta
+
+def makeGenbankTagSeqs(seqs, meta):
+    """ merge meta data into seq IDs as []-tags and return a list of (seqId,
+    seq)
+    """
+    trimSeqCount = 0
+
+    newSeqs = []
+    for seqId, seq in seqs:
+        trimCount, seq = trimSeq(seqId, seq)
+        if trimCount != 0:
+            trimSeqCount += 1
+
+        seqMeta = meta.get(seqId)
+
+        if seqMeta is None:
+            logging.error("Skipping fasta sequence with ID %s - cannot find it "
+                "in the annotation table" % repr(seqId))
+            continue
+
+        isolate = seqMeta["isolate"]
+        title = "Severe acute respiratory syndrome coronavirus 2 " \
+                "isolate %s, complete genome" % isolate
+
+        tagsStrs = []
+        for key, val in seqMeta.items():
+            tagsStrs.append("["+key+"="+val+"]")
+
+        tagStr = " ".join(tagsStrs)
+        seqId = "%s %s %s" % (seqId, tagStr, title)
+
+        newSeqs.append( (seqId, seq) )
+
+    return newSeqs
+
+    logging.info("Trimmed starting/ending N-letters from %d sequences" % trimSeqCount)
+
+def writeGenbankTagFa(seqs, meta, gbOutFname):
+    """ write sequences to genbank for interactive submission, a single fasta file
+    This format saves the annotations directly into the fasta file, so
+    you need to upload only a single file.
+    """
+    gbMeta = metaToGenbank(meta)
+    gbSeqs = makeGenbankTagSeqs(seqs, gbMeta)
+
+    with open(gbOutFname, "wt") as ofh:
+        writeFasta(gbSeqs, ofh)
+
+def filterAll(skipFile, seqs, meta):
+    " parse first column from skipFile and remove these seqs and their annotations "
+    headers, rows = parseTable(skipFile)
+    skipIds = set()
+    for row in rows:
+        skipIds.add( row[0] )
+    logging.info("Read %d sequence IDs from file %s to skip" % (len(skipIds), skipFile))
+
+    newSeqs = []
+    skippedSeqs = []
+    skipSeqCount = 0
+    skipAnnotCount = 0
+    for seqId, seq in seqs:
+        if seqId in skipIds:
+            skipSeqCount +=1
+            skippedSeqs.append ( (seqId, seq) )
+        else:
+            newSeqs.append ( (seqId, seq) )
+
+    newMeta = {}
+    skippedMeta = {}
+    for key, val in meta.items():
+        if key in skipIds:
+            skipAnnotCount += 1
+            skippedMeta[key] = val
+        else:
+            newMeta[key] = val
+
+    logging.info("Removed %d sequences and %d annotation rows" % (skipSeqCount, skipAnnotCount) )
+    logging.info("%d sequences and %d annotation rows remain" % (len(newSeqs), len(newMeta)) )
+    return newSeqs, newMeta, skippedSeqs, skippedMeta
+
+def makeAuthors():
+    "return ncbi templatestring for authors "
+    cfg = getConfig()
+    strs = []
+    for au in cfg["authors"]:
+       strs.append("""
+       {
+          name name {
+            last "%s",
+            first "%s",
+            middle "%s",
+            initials "",
+            suffix "",
+            title ""
+          }
+        },
+        """ % (au[0], au[1], au[2]))
+    return "\n".join(strs)
+
+def makeTemplate():
+    " make genbank ASN.1 submission template and return as string "
+    cf = getConfig()
+
+    last = cf["contact"][0]
+    first = cf["contact"][1]
+    middle = cf["contact"][2]
+    email = cf["email"]
+    phone = cf["phone"]
+
+    af = cf["affiliation"]
+    afUni = af["affil"]
+    afDiv = af["div"]
+    afCity = af["city"]
+    afSub = af["sub"]
+    afCountry = af["country"]
+    afStreet = af["street"]
+    afPostal = af["postal-code"]
+    authors = makeAuthors()
+
+    templ = """Submit-block ::= {
+  contact {
+    contact {
+      name name {
+        last "%(last)s",
+        first "%(first)s",
+        middle "%(middle)s",
+        initials "",
+        suffix "",
+        title ""
+      },
+      affil std {
+        affil "%(afUni)s",
+        div "%(afDiv)s",
+        city "%(afCity)s",
+        sub "%(afSub)s",
+        country "%(afCountry)s",
+        street "%(afStreet)s",
+        email "%(email)s",
+        phone "%(phone)s",
+        postal-code "%(afPostal)s"
+      }
+    }
+  },
+  cit {
+    authors {
+      names std {
+        %(authors)s
+      affil std {
+        affil "%(afUni)s",
+        div "%(afDiv)s",
+        city "%(afCity)s",
+        sub "%(afSub)s",
+        country "%(afCountry)s",
+        street "%(afStreet)s",
+        postal-code "%(afPostal)s"
+      }
+    }
+  },
+  subtype new
+}
+Seqdesc ::= pub {
+  pub {
+    gen {
+      cit "unpublished",
+      authors {
+        names std {
+           %(authors)s
+        }
+      },
+      title "Direct Submission"
+    }
+  }
+}
+Seqdesc ::= user {
+  type str "Submission",
+  data {
+    {
+    }
+  }
+}
+Seqdesc ::= user {
+  type str "Submission",
+  data {
+    {
+      label str "AdditionalComment",
+      data str "Submission Title:None"
+    }
+  }
+} """ % locals()
+    return templ
+
+def now():
+    "returns current time in isoformat, only seconds "
+    s = datetime.isoformat(datetime.now(), sep="_").split(".")[0].replace(":", "")
+    return s
+
+def makeSubXml():
+    " generate a ncbi submission.xml file "
+    # I am not using release dates:
+    # <Hold release_date="2024-05-25"/>
+    c = getConfig()
+    ncbiUser = c["ncbiUser"]
+    uniqueId = now()
+
+    xml = """<?xml version="1.0"?>
+<Submission>
+  <Description>
+    <Title>multiSub automated submission</Title>
+    <Comment>SARS-CoV-2 test submission</Comment>
+    <Organization type="center" role="owner">
+      <Name>%(ncbiUser)s</Name>
+    </Organization>
+  </Description>
+  <Action>
+    <AddFiles target_db="GenBank">
+      <File file_path="submission.zip">
+        <DataType>genbank-submission-package</DataType>
+      </File>
+      <Attribute name="wizard">BankIt_SARSCoV2_api</Attribute>
+      <Attribute name=="auto_remove_failed_seqs">yes</Attribute>
+      <Identifier>
+        <SPUID spuid_namespace="ncbi-sarscov2-genbank">%(uniqueId)s</SPUID>
+      </Identifier>
+    </AddFiles>
+  </Action>
+</Submission>
+    """ % locals()
+    return xml
+
+def writeGenbankFtpZip(seqs, meta, zipFname, xmlFname):
+    " create fasta/src and xml file for genbank ftp upload "
+    # documentation and sample files are here: https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/submit/public-docs/genbank/SARS-CoV-2/
+    gbMeta = metaToGenbank(meta)
+
+    with zipfile.ZipFile(zipFname, "w") as zfh:
+        # writing as a string avoids any py2/3 unicode trouble
+        with StringIO() as memFh:
+            writeFasta(seqs, memFh)
+            zfh.writestr("seqs.fsa", memFh.getvalue())
+
+        with StringIO() as memFh:
+            writeMetaTsv(gbMeta, memFh)
+            zfh.writestr("seqs.src", memFh.getvalue())
+
+        zfh.writestr("seqs.sbt", makeTemplate())
+
+    logging.info("Wrote zipfile %s" % zipFname)
+
+    #xmlFname = join(outDir, "submission.xml")
+    with open(xmlFname, "wt") as ofh:
+        ofh.write( makeSubXml() )
+    logging.info("Wrote genbank XML %s" % xmlFname)
+
+def main():
+    args, options = parseArgs()
+
+    cmd = args[0]
+
+    if cmd=="conv":
+        faFname, metaFname, outDir = args[1:]
+        seqs = list(parseFasta(faFname))
+        meta = readMeta(metaFname)
+        logging.info("Read %d sequences and %d annotation rows" % (len(seqs), len(meta)))
+
+        if options.skipFile:
+            seqs, meta, skipSeqs, skipMeta = filterAll(options.skipFile, seqs, meta)
+
+        if not isdir(outDir):
+            os.mkdir(outDir)
+            logging.info("Created directory %s" % outDir)
+
+        # raw fasta file
+        seqFn = join(outDir, "genbankSeq.fa")
+        writeFasta(seqs, io.open(seqFn, "wt"))
+
+        # raw meta file
+        metaFn = join(outDir, "genbankSource.tsv")
+        gbMeta = metaToGenbank(meta)
+        writeMetaTsv(meta, io.open(metaFn, "wt"))
+
+        # combined genbank seq + source tags file
+        gbOutFn = join(outDir, "genbank.seqAndSource.fa")
+        writeGenbankTagFa(seqs, meta, gbOutFn)
+
+        #if len(skipSeqs)!=0:
+            #gbSkipFn = outBase+"genbank.skip.fa"
+            #writeGenbankTagFa(skipSeqs, skipMeta, gbSkipFn)
+
+        zipFname = join(outDir, "genbankFtp.zip")
+        xmlFname = join(outDir, "submission.xml")
+        writeGenbankFtpZip(seqs, meta, zipFname, xmlFname)
+
+    elif cmd=="put":
+        dataDir = args[1]
+        zipFname = join(outDir, "genbankFtp.zip")
+
+main()
