@@ -1,13 +1,16 @@
 # multiSub
 
 multiSub is a command-line tool to prepare and/or submit a SARS-CoV-2 genome
-sequence to the Genbank sequence repository.
+sequence to the Genbank or GISAID sequence repository. It can also convert between
+both formats.
 
-## Summary 
+## Overview
 
 multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID xls format.
 It will make some best effort to clean the input data, e.g. skip missing sequences
-or remove empty meta data and warn about it.
+or remove empty meta data and warn about it. It can then create one or multiple output files, 
+in NCBI, NCBI-tag, NCBI-ftp or GISAID-csv format. An automatic upload to NCBI and GISAID is
+planned.
 
 ## Input 
 The first input is a fasta file with multiple sequences, where each sequence has
@@ -21,41 +24,58 @@ For tsv and csv input, the required meta field names are "date" and "isolate".
 For GISAID input, only the fields "covv_location", "covv_collection_date" and 
 "covv_virus_name" are used.
 
-## Output
+## Output file formats
 
-These files are created:
+By default files in all formats are created. If you only want to create a subset, use the -f option and list the
+formats that you need:
 
-- For manual Genbank submission: genbankSeq.fa + genbankSource.tsv, two separate files.
+- "ncbi" - for manual Genbank upload, as a single fasta file with integrated tags: genbank.seqAndSource.fa
   For manual upload on https://submit.ncbi.nlm.nih.gov/sarscov2/
-- For manual Genbank upload, as a single fasta file with integrated tags: genbank.seqAndSource.fa
-- For automated Genbank upload: genbankFtp.zip + submission.xml. See below for details.
+- "ncbiSep" - for manual Genbank submission: genbankSeq.fa + genbankSource.tsv, two separate files.
+  For manual upload on https://submit.ncbi.nlm.nih.gov/sarscov2/
+- "ncbi-ftp" - for automated Genbank upload: genbankFtp.zip + submission.xml. See below for details.
+- "gisaid" - for GISAID bulk upload in .csv format.
+
+## Requirements
+
+The script was tested on Python 2.7 and 3.6. GISAID xls import requires the xlrd Python package that you can install with
+"pip install xlrd" or, if you are not administrator, with "pip install xlrd --user". 
+
+If you use Mac OSX and do not have pip installed, run the command "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
 ## Examples
 
 Convert sequences from seqs.fa with annotations (fields: seqId, date, isolate) in seqs.tsv to 
-the directory mySub/:
+the directory mySub/ and create files for NCBI and GISAID upload:
 
-    multiSub convert seqs.fa seqs.tsv mySub 
+    multiSub convert seqs.fa seqs.tsv mySub
 
-Convert sequences from seqs.fa with annotations in GISAID format to the directory mySub/:
+Convert sequences from seqs.fa with annotations in GISAID format to the directory mySub/ and only create the NCBI and NCBI-ftp files:
 
-    multiSub convert seqs.fa GISAID.xls mySub 
+    multiSub convert seqs.fa GISAID.xls mySub -f ncbi,ncbi-ftp
 
 ## Automated Genbank uploads
 
-TODO: request username/password. Setup FTP.
+Request an FTP username and password from gb-admin@ncbi.nlm.nih.gov
 
 Create a config file with settings about your group (name, address, email, etc):
 
     curl https://hgwdev.gi.ucsc.edu/~max/multiSub/multiSub.conf > ~/.multiSub.conf 
 
-Edit the file ~/.multiSub.conf with your institutional information, name, authors, email, etc.
+Edit the file ~/.multiSub.conf with your institutional information, name,
+authors, email, etc. and also the NCBI username and NCBI password.
 
-Convert your submission:
+For full details see https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/submit/public-docs/genbank/SARS-CoV-2/ 
 
-    multiSub convert seqs.fa seqs.tsv mySub 
+Then, convert your submission files into the NCBI FTP format:
 
-Upload sequences in mySub/ to the NCBI FTP server:
+    multiSub convert seqs.fa seqs.tsv mySub -f ncbi-ftp
 
-    multiSub put mySub
+Upload sequences in mySub/ to the NCBI FTP server as a test submission:
+
+    multiSub up-ncbi mySub
+    
+Upload sequences in mySub/ to the NCBI FTP server as a real submission:
+
+    multiSub up-ncbi mySub --prod
     

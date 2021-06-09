@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# tested on python2.7 and python3.6
 
 import logging, sys, optparse, os, io
 from collections import defaultdict, OrderedDict
@@ -7,6 +8,9 @@ from datetime import datetime
 import csv, zipfile
 import textwrap
 from io import StringIO # python2.6 and 3
+
+# all possible values for the --format option
+allFmts = ["ncbi", "ncbi-sep", "ncbi-ftp", "gisaid"]
 
 config = {
     # three-leter country abbreviation
@@ -19,6 +23,14 @@ config = {
     # overwritten by ~/.multiSub.conf, these bogus values are only there so the script can run 
     # without a config file
 
+    # for the GISAID file
+    "gisaidUser" : "gisaidTest",
+    "gisaidLocation" : "North America / USA / California / Santa Cruz",
+    "gisaid_host" : "Human",
+    "gisaid_technology" : "Illumina NextSeq 550",
+    "gisaid_assembly_method" : "",
+    "gisaid_orig_lab" : "UCSC Genomics Institute",
+    "gisaid_orig_lab_addr" : "1156 High Street. Santa Cruz, CA 95064",
     # for the NCBI Submission XML file
     "ncbiUser" : "testUser",
     "contact" : ("Doe", "John", "D"),
@@ -50,7 +62,7 @@ def getConfig():
         homeDir = os.path.expanduser('~')
         cfgFname = join(homeDir, ".multiSub.conf")
         if isfile(cfgFname):
-            exec(open(cfgFname).read(), config)
+            exec(io.open(cfgFname).read(), config)
         else:
             logging.info("%s does not exist. Using default values. Consider running 'curl https://hgwdev.gi.ucsc.edu/~max/multiSub/multiSub.conf > ~/.multiSub.conf'" % cfgFname)
         configDone = True
@@ -68,17 +80,22 @@ def parseArgs():
     Examples:
         
         multiSub convert seqs.fa seqs.tsv mySub - convert fasta+tsv to NCBI format in mySub/
-        multiSub put mySub - upload NCBI files in mySub to NCBI's FTP server
+        multiSub up-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as test submission (add --prod if final)
+
     """)
 
     parser.add_option("-d", "--debug", dest="debug",
         action="store_true", help="show debug messages")
     parser.add_option("-s", "--skip", dest="skipFile",
         action="store", help="file with at least one column with the sequence "
-        "identifier of sequences to remove. Can be the NCBI error report. These "
+        "identifier of sequences to remove. Can be the raw NCBI error report text file. These "
         "sequences and their annotations will be skipped.")
-    parser.add_option("", "--skipFa", dest="skipFa", action="store",
-        help="file to write skipped sequences to.")
+    #parser.add_option("", "--skipFa", dest="skipFa", action="store",
+        #help="file to write skipped sequences to.")
+    parser.add_option("-f", "--format", dest="format", action="store",
+        default="all",
+        help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
+    parser.add_option("", "--prod", dest="prod", action="store_true", help="For up-ncbi: use the Production upload, not Testing")
     parser.add_option("", "--test", dest="test", action="store_true", help="run tests")
     (options, args) = parser.parse_args()
 
@@ -113,7 +130,7 @@ def openFile(fname, mode="rt"):
     elif fname==None or fname.lower()=="none":
         fh = None
     else:
-        fh = open(fname, mode)
+        fh = io.open(fname, mode)
     return fh
 
 def parseFastaId(line):
@@ -174,7 +191,7 @@ def readMetaGisaid(fname):
 
     dateIdx = headers.index("covv_collection_date")
     isolateIdx = headers.index("covv_virus_name")
-    countryIdx = headers.index("covv_location")
+    locIdx = headers.index("covv_location")
 
     meta = dict()
     for row_idx in range(2, sheet.nrows):    # Iterate through rows
@@ -186,7 +203,9 @@ def readMetaGisaid(fname):
         meta[isolate] = OrderedDict()
         meta[isolate]["isolate"] = isolate
         meta[isolate]["date"] = date
-        meta[isolate]["country"] = row[countryIdx].split("/")[1].strip()
+        meta[isolate]["country"] = row[locIdx].split("/")[1].strip()
+        meta[isolate]["location"] = row[locIdx]
+
     return meta
 
 def errAbort(msg):
@@ -194,10 +213,13 @@ def errAbort(msg):
     sys.exit(1)
 
 def checkMeta(meta):
-    " throw error if something is malformed "
+    " throw error if something is malformed in meta data "
     for seqId, m in meta.items():
+        if not "isolate" in m:
+            errAbort("Meta data row for '%s' does not contain an 'isolate' field" % seqId)
+
         if not "date" in m:
-            logging.error("Meta data row for '%s' does not contain a date field" % seqId)
+            errAbort("Meta data row for '%s' does not contain a date field" % seqId)
         else:
             year, month, day = m["date"].split("-") # date format is 2019-12-30
             year = int(year)
@@ -423,7 +445,7 @@ def writeGenbankTagFa(seqs, meta, gbOutFname):
     gbMeta = metaToGenbank(meta)
     gbSeqs = makeGenbankTagSeqs(seqs, gbMeta)
 
-    with open(gbOutFname, "wt") as ofh:
+    with io.open(gbOutFname, "wt") as ofh:
         writeFasta(gbSeqs, ofh)
 
 def filterAll(skipFile, seqs, meta):
@@ -627,20 +649,173 @@ def writeGenbankFtpZip(seqs, meta, zipFname, xmlFname):
     logging.info("Wrote zipfile %s" % zipFname)
 
     #xmlFname = join(outDir, "submission.xml")
-    with open(xmlFname, "wt") as ofh:
+    with io.open(xmlFname, "wt") as ofh:
         ofh.write( makeSubXml() )
     logging.info("Wrote genbank XML %s" % xmlFname)
+
+def getFormats(formatStr):
+    " return the list of specified output formats. formatStr is a comma separated list "
+    outFmts = None
+    if formatStr is None or formatStr == "all":
+        outFmts = allFmts
+    else:
+        fmts = formatStr.split(",")
+        unknownFmts = set(fmts)-set(allFmts)
+        if len(unknownFmts)!=0:
+            errAbort("These output formats are not valid: %s" % unknownFmts)
+        outFmts = fmts
+    return outFmts
+
+def writeGisaidCsv(seqs, meta, seqFn, metaFn):
+    " write the seqs and the meta csv in GISAID format "
+    # GISAID docs has this sample:
+    # submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_a dd_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,cov v_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembl y_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors
+    #lanman,20200629.gisaid.fa,hCoV-19/England/07/2020,betacoronavirus,Original,2020-03-24,United Kingdom / England,,Human,,unknown,unknown,unknown,unknown,unknown,unknown,unknown, OXFORD_NANOPORE,unknown,unknown,University, "Institute of Microbiology and Infection, University-Street, UK",BIRM-5E407,COVID-19 Genomics UK (COG-UK) Consortium,United Kingdom,LON-07, "Jane Doe, John Doe"
+    # rewrite seqs to use isolate name
+    newSeqs = []
+    for seqId, seq in seqs:
+        isolate = meta[seqId]["isolate"]
+        newSeqs.append((isolate, seq))
+    writeFasta(newSeqs, io.open(seqFn, "wt"))
+
+    cf = getConfig()
+    metaFh = io.open(metaFn, "wt")
+    metaFh.write("submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors\n")
+
+    for seqId, metaDict in meta.items():
+        submitter = cf["gisaidUser"]
+        fn = "gisaid.fa"
+        name = metaDict["isolate"]
+        vType = "betacoronavirus"
+        passage = "Original"
+        date = metaDict["date"]
+        if "location" in metaDict:
+            location = metaDict["location"]
+        else:
+            location = cf["gisaidLocation"]
+        addLocation = ""
+        host = "Human"
+        addHost = ""
+        gender = "unknown"
+        age = "unknown"
+        status = "unknown"
+        specimen = ""
+        outbreak = ""
+        last_vaccinated = ""
+        treatment = ""
+        if "gisaid_technology" in cf:
+            technology = cf["gisaid_technology"]
+        else:
+            technology = "Illumina NextSeq 550"
+
+        if "gisaid_assembly_method" in cf:
+            assembly_method = cf["gisaid_assembly_method"]
+        else:
+            assembly_method = ""
+
+        coverage = ""
+        orig_lab = cf["gisaid_orig_lab"]
+        orig_lab_addr = cf["gisaid_orig_lab_addr"]
+        sampleId = ""
+        subm_lab = cf["gisaid_orig_lab"]
+        subm_lab_addr = cf["gisaid_orig_lab_addr"]
+        subm_lab_sample_id = ""
+
+        auStrs = []
+        for au in cf["authors"]:
+            last, first, middle = au
+            if middle!="":
+                auStr = "%s %s %s" % (first, middle, last)
+            else:
+                auStr = "%s %s" % (first, last)
+            auStrs.append(auStr)
+        authors = u", ".join(auStrs)
+
+        row = [submitter, fn, name, vType, passage, date, location, addLocation, host, \
+                addHost, gender, age, status, specimen, outbreak, last_vaccinated, treatment, \
+                technology, assembly_method, coverage, '"'+orig_lab+'"', '"'+orig_lab_addr+'"', \
+                sampleId, '"'+subm_lab+'"', '"'+subm_lab_addr+'"', subm_lab_sample_id, '"'+authors+'"']
+        metaFh.write(u",".join(row))
+        metaFh.write(u"\n")
+    metaFh.close()
+    logging.info("Wrote GISAID csv to %s" % metaFh.name)
+
+def removeStraySeqsOrMeta(seqs, meta):
+    " skips seqs without meta and meta without a seq "
+    newSeqs = []
+    seqIds = set()
+    for seqId, seq in seqs:
+        seqMeta = meta.get(seqId)
+
+        if seqMeta is None:
+            logging.error("Skipping fasta sequence with ID %s - cannot find it "
+                "in the meta annotation table" % repr(seqId))
+            continue
+
+        newSeqs.append( (seqId, seq) )
+        seqIds.add(seqId)
+
+    newMeta = OrderedDict()
+    for seqId, metaDict in meta.items():
+        if seqId not in seqIds:
+            logging.error("Skipping meta annotation with ID %s - cannot find it "
+                "in the sequence file" % repr(seqId))
+            continue
+        newMeta[seqId] = metaDict
+
+    return newSeqs, newMeta
+
+def putNcbi(zipFname, xmlFname, isProd):
+    " upload the zip files onto the genbank ftp server, by default as a testing submission "
+    cf = getConfig()
+    from ftplib import FTP
+    host = "ftp-private.ncbi.nlm.nih.gov"
+    logging.info("Connecting to %s" % host)
+    ftp = FTP(host, cf["ncbiUser"], cf["ncbiPass"])
+
+    if isProd:
+        dirName = "Production"
+    else:
+        dirName = "Test"
+
+    logging.info("CWD %s" % dirName)
+    ftp.cwd(dirName)
+
+    subDir = now()
+    ftp.mkd(subDir)
+    ftp.cwd(subDir)
+    logging.info("make directory %s" % subDir)
+
+    logging.info("Uploading "+zipFname)
+    f1 = open(zipFname,'rb')
+    ftp.storbinary('STOR genbankFtp.zip', f1)
+    f1.close()
+
+    logging.info("Uploading "+xmlFname)
+    f2 = open(xmlFname,'rb')
+    ftp.storbinary('STOR submission.xml', f2)
+    f2.close()
+
+    logging.info("Creating submit.ready")
+    with StringIO() as tmpFh:
+        tmpFh.write(u"")
+        ftp.storbinary('STOR submit.ready', tmpFh)
+
+    ftp.quit()
 
 def main():
     args, options = parseArgs()
 
     cmd = args[0]
 
+    outFmts = getFormats(options.format)
+
     if cmd=="conv":
         faFname, metaFname, outDir = args[1:]
         seqs = list(parseFasta(faFname))
         meta = readMeta(metaFname)
         logging.info("Read %d sequences and %d annotation rows" % (len(seqs), len(meta)))
+        seqs, meta = removeStraySeqsOrMeta(seqs, meta)
 
         if options.skipFile:
             seqs, meta, skipSeqs, skipMeta = filterAll(options.skipFile, seqs, meta)
@@ -649,29 +824,39 @@ def main():
             os.mkdir(outDir)
             logging.info("Created directory %s" % outDir)
 
-        # raw fasta file
-        seqFn = join(outDir, "genbankSeq.fa")
-        writeFasta(seqs, io.open(seqFn, "wt"))
+        if "ncbi-sep" in outFmts:
+            # raw fasta file
+            seqFn = join(outDir, "genbankSeq.fa")
+            writeFasta(seqs, io.open(seqFn, "wt"))
+            # raw meta file
+            metaFn = join(outDir, "genbankSource.tsv")
+            gbMeta = metaToGenbank(meta)
+            writeMetaTsv(meta, io.open(metaFn, "wt"))
 
-        # raw meta file
-        metaFn = join(outDir, "genbankSource.tsv")
-        gbMeta = metaToGenbank(meta)
-        writeMetaTsv(meta, io.open(metaFn, "wt"))
+        if "ncbi" in outFmts:
+            # combined genbank seq + source tags file
+            gbOutFn = join(outDir, "genbankSeqAndSource.fa")
+            writeGenbankTagFa(seqs, meta, gbOutFn)
 
-        # combined genbank seq + source tags file
-        gbOutFn = join(outDir, "genbank.seqAndSource.fa")
-        writeGenbankTagFa(seqs, meta, gbOutFn)
+            #if len(skipSeqs)!=0:
+                #gbSkipFn = outBase+"genbank.skip.fa"
+                #writeGenbankTagFa(skipSeqs, skipMeta, gbSkipFn)
 
-        #if len(skipSeqs)!=0:
-            #gbSkipFn = outBase+"genbank.skip.fa"
-            #writeGenbankTagFa(skipSeqs, skipMeta, gbSkipFn)
+        if "ncbi-ftp" in outFmts:
+            zipFname = join(outDir, "genbankFtp.zip")
+            xmlFname = join(outDir, "submission.xml")
+            writeGenbankFtpZip(seqs, meta, zipFname, xmlFname)
 
-        zipFname = join(outDir, "genbankFtp.zip")
-        xmlFname = join(outDir, "submission.xml")
-        writeGenbankFtpZip(seqs, meta, zipFname, xmlFname)
+        if "gisaid" in outFmts:
+            gisaidSeqFn = join(outDir, "gisaid.fa")
+            gisaidMetaFn = join(outDir, "gisaid.csv")
+            writeGisaidCsv(seqs, meta, gisaidSeqFn, gisaidMetaFn)
 
-    elif cmd=="put":
+    elif cmd=="up-ncbi":
         dataDir = args[1]
-        zipFname = join(outDir, "genbankFtp.zip")
+        zipFname = join(dataDir, "genbankFtp.zip")
+        xmlFname = join(dataDir, "submission.xml")
+
+        putNcbi(zipFname, xmlFname, options.prod)
 
 main()
