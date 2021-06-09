@@ -1,16 +1,18 @@
 # multiSub
 
 multiSub is a command-line tool to prepare and/or submit a SARS-CoV-2 genome
-sequence to the Genbank or GISAID sequence repository. It can also convert between
-both formats.
+sequence to the NCBI Genbank and GISAID sequence repository. It can also
+convert between various formats. These features are sometimes used by a "data
+broker", when a single institution collects sequences from labs and submits
+them for the labs to the target databases. 
 
 ## Overview
 
 multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID xls format.
-It will make some best effort to clean the input data, e.g. skip missing sequences
+It will make some effort to clean the input data, e.g. skip missing sequences
 or remove empty meta data and warn about it. It can then create one or multiple output files, 
-in NCBI, NCBI-tag, NCBI-ftp or GISAID-csv format. An automatic upload to NCBI and GISAID is
-planned.
+in NCBI, NCBI-tag, NCBI-ftp or GISAID-csv format. An automatic upload to NCBI is in development
+and one for ENA and GISAID is planned via their respective APIs.
 
 ## Input 
 The first input is a fasta file with multiple sequences, where each sequence has
@@ -34,14 +36,14 @@ formats that you need:
 - "ncbiSep" - for manual Genbank submission: genbankSeq.fa + genbankSource.tsv, two separate files.
   For manual upload on https://submit.ncbi.nlm.nih.gov/sarscov2/
 - "ncbi-ftp" - for automated Genbank upload: genbankFtp.zip + submission.xml. See below for details.
-- "gisaid" - for GISAID bulk upload in .csv format.
+- "gisaid" - for GISAID upload in .csv format.
 
 ## Requirements
 
 The script was tested on Python 2.7 and 3.6. GISAID xls import requires the xlrd Python package that you can install with
 "pip install xlrd" or, if you are not administrator, with "pip install xlrd --user". 
 
-If you use Mac OSX and do not have pip installed, run the command "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
+If you use Mac OSX and do not have pip installed yet, run the command "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
 ## Examples
 
