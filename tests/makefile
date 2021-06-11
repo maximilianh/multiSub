@@ -8,3 +8,9 @@ test-gisaid1: mkdir
 
 test-ucsc1: mkdir
 	../multiSub conv ucsc1/all.fa ucsc1/all.tsv expected/ucsc1/ --skip ucsc1/SUB9389947-detailed-error-report.txt
+
+up-ncbi:
+	../multiSub up-ncbi expected/gisaid1/
+
+up-ena:
+	../multiSub up-ena expected/gisaid1/

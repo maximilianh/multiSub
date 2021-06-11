@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # tested on python2.7 and python3.6
 
-import logging, sys, optparse, os, io
+import logging, sys, optparse, os, io, json
 from collections import defaultdict, OrderedDict
 from os.path import join, basename, dirname, isfile, isdir, expanduser
 from datetime import datetime
 import csv, zipfile
 import textwrap
 from io import StringIO # python2.6 and 3
+import requests # not installed? run "pip install requests"
 
 # all possible values for the --format option
-allFmts = ["ncbi", "ncbi-sep", "ncbi-ftp", "gisaid"]
+allFmts = ["ncbi", "ncbi-sep", "ncbi-ftp", "gisaid", "ena"]
 
 config = {
     # three-leter country abbreviation
@@ -95,7 +96,7 @@ def parseArgs():
     parser.add_option("-f", "--format", dest="format", action="store",
         default="all",
         help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
-    parser.add_option("", "--prod", dest="prod", action="store_true", help="For up-ncbi: use the Production upload, not Testing")
+    parser.add_option("", "--prod", dest="prod", action="store_true", help="For up-ncbi and up-ena: use the Production upload server, not Testing")
     parser.add_option("", "--test", dest="test", action="store_true", help="run tests")
     (options, args) = parser.parse_args()
 
@@ -215,7 +216,7 @@ def errAbort(msg):
 def checkMeta(meta):
     " throw error if something is malformed in meta data "
     for seqId, m in meta.items():
-        if not "isolate" in m:
+        if not "isolate" in m.keys():
             errAbort("Meta data row for '%s' does not contain an 'isolate' field" % seqId)
 
         if not "date" in m:
@@ -265,10 +266,17 @@ def readMetaText(fname):
         seqId = row[0]
 
         d = OrderedDict()
+
+        # if the first field is "isolate", add it here again:
+        # The genbank files that we create use 'isolate' as the first field
+        if not "isolate" in d and headers[0]=="isolate":
+            d["isolate"] = seqId
+
         for colIdx in range(1, len(headers)):
             key = headers[colIdx]
             d[key] = row[colIdx]
         meta[seqId] = d
+
 
     return meta
 
@@ -596,7 +604,7 @@ def now():
     s = datetime.isoformat(datetime.now(), sep="_").split(".")[0].replace(":", "")
     return s
 
-def makeSubXml():
+def makeNcbiSubXml():
     " generate a ncbi submission.xml file "
     # I am not using release dates:
     # <Hold release_date="2024-05-25"/>
@@ -619,7 +627,7 @@ def makeSubXml():
         <DataType>genbank-submission-package</DataType>
       </File>
       <Attribute name="wizard">BankIt_SARSCoV2_api</Attribute>
-      <Attribute name=="auto_remove_failed_seqs">yes</Attribute>
+      <Attribute name="auto_remove_failed_seqs">yes</Attribute>
       <Identifier>
         <SPUID spuid_namespace="ncbi-sarscov2-genbank">%(uniqueId)s</SPUID>
       </Identifier>
@@ -650,7 +658,7 @@ def writeGenbankFtpZip(seqs, meta, zipFname, xmlFname):
 
     #xmlFname = join(outDir, "submission.xml")
     with io.open(xmlFname, "wt") as ofh:
-        ofh.write( makeSubXml() )
+        ofh.write( makeNcbiSubXml() )
     logging.info("Wrote genbank XML %s" % xmlFname)
 
 def getFormats(formatStr):
@@ -765,7 +773,7 @@ def removeStraySeqsOrMeta(seqs, meta):
 
     return newSeqs, newMeta
 
-def putNcbi(zipFname, xmlFname, isProd):
+def upNcbi(zipFname, xmlFname, isProd):
     " upload the zip files onto the genbank ftp server, by default as a testing submission "
     cf = getConfig()
     from ftplib import FTP
@@ -802,6 +810,130 @@ def putNcbi(zipFname, xmlFname, isProd):
         ftp.storbinary('STOR submit.ready', tmpFh)
 
     ftp.quit()
+
+def upEnaSeq(seqs, meta, asmUrl, auth):
+    " upload sequences to ENA "
+    logging.info("Starting upload to %s" % asmUrl)
+
+    cf = getConfig()
+    for (seqId, seq) in seqs:
+        logging.info("Uploading sequence %s" % seqId)
+        seqMeta = meta[seqId]
+        trimCount, seq = trimSeq(seqId, seq)
+
+        data = {
+            'name': seqMeta["isolate"][:37],
+            'study': cf["enaProj"],
+            'sample': seqMeta["isolate"],
+            'alias': seqMeta["isolate"],
+            'coverage': 100,
+            'program': 'unknown',
+            'platform': cf["enaPlatform"],
+            'sequence': seq
+        }
+        jsonStr = json.dumps(data, indent=4)
+
+        headers = {'accept': 'application/json', 'Content-Type': 'application/json'}
+
+        resp = requests.post(asmUrl, data=jsonStr, auth=auth, headers=headers)
+        if resp.status_code != 200:
+            logging.warning('error submitting sequence: ' + seqId + \
+                ' with: ' + str(resp.status_code ) +' ' +  str(resp.text ))
+            resp = requests.post(asmUrl+ '/validate', data=jsonStr, auth=auth, headers=headers)
+            logging.warning('validate reponse is: ' + str(resp.text ))
+            logging.warning('validate content is: ' + str(resp.content ))
+            #ex = 'An error occurred in "submitting assembly" in statement: {}: "{}"'.format(str(response.status_code ),str(response.content))
+            errAbort("seq upload failed")
+
+def makeEnaSubmitXml():
+    " return the template XML to add seqs to ENA "
+    return """<?xml version="1.0" encoding="UTF-8"?>
+    <SUBMISSION>
+       <ACTIONS>
+          <ACTION>
+            <ADD/>
+          </ACTION>
+       </ACTIONS>
+    </SUBMISSION>"""
+
+def writeEnaXml(meta, ofh):
+    " create the ENA XML file with the sample meta (not sequences)"
+    cf = getConfig()
+    centerName = cf["enaCenter"]
+    collectorName = cf["enaCollector"]
+    collInst = cf["enaCollInst"]
+    country = cf["enaCountry"]
+    region = cf["enaRegion"]
+    host = cf["enaHost"]
+
+    ofh.write("<SAMPLE_SET>\n")
+    for seqId, seqMeta in meta.items():
+        ofh.write('  <SAMPLE alias="%s" center_name = "%s">\n' % (seqMeta["isolate"], centerName))
+        ofh.write('    <TITLE>Molecular surveillance of SARS-CoV-2</TITLE>\n')
+        ofh.write('    <SAMPLE_NAME>\n')
+        ofh.write('      <TAXON_ID>2697049</TAXON_ID>\n')
+        ofh.write('      <SCIENTIFIC_NAME>Severe acute respiratory syndrome coronavirus 2</SCIENTIFIC_NAME>\n')
+        ofh.write('    </SAMPLE_NAME>\n')
+        ofh.write('    <SAMPLE_ATTRIBUTES>\n')
+
+        # described here: https://www.ebi.ac.uk/ena/browser/view/ERC000033
+        attributes = {
+            "ENA-CHECKLIST" : "ERC000033",
+            "collector name" : collectorName,
+            "collecting institution" : collInst,
+            "geographic location (country and/or sea)" : country,
+            "geographic location (region and locality)" : region,
+            "collection date" : seqMeta["date"],
+            "host common name" : host,
+            "sample capture status" : "active surveillance in response to outbreak",
+            "host scientific name" : "Homo sapiens",
+            "host subject id" : seqId, # not correct, but we have no other identifier
+            "host health state" : "diseased",
+            "host sex" : "not provided",
+            "isolate" : seqMeta["isolate"],
+        }
+
+        for tag, value in attributes.items():
+            ofh.write('      <SAMPLE_ATTRIBUTE>')
+            ofh.write('<TAG>%s</TAG>' % tag)
+            ofh.write('<VALUE>%s</VALUE>' % value)
+            ofh.write('</SAMPLE_ATTRIBUTE>\n')
+        ofh.write("    </SAMPLE_ATTRIBUTES>\n")
+        ofh.write("  </SAMPLE>\n\n")
+
+    ofh.write("</SAMPLE_SET>\n")
+    logging.info("Wrote %s" % ofh.name)
+
+def upEnaSample(xmlFname, upUrl, sampleLogFn, auth):
+    " upload sample meta data to ENA "
+    # see https://ena-docs.readthedocs.io/en/latest/submit/samples/programmatic.html
+    subXml = makeEnaSubmitXml()
+    logging.info("Sending %s to %s" % (xmlFname, upUrl))
+    fileInfo = {'SAMPLE': io.open(xmlFname), 'SUBMISSION': subXml}
+    resp = requests.post(url=upUrl, files=fileInfo, auth=auth)
+
+    assert(not isfile(sampleLogFn)) # submission receipt file must not exist yet
+    ofh = io.open(sampleLogFn, "wt")
+    logging.info("Wrote receipt to %s" % sampleLogFn)
+    ofh.write(resp.content.decode("utf8"))
+
+def upEna(sampleFname, seqFname, metaFname, seqLog, sampleLogFn, isProd):
+    " upload using webin ENA API "
+    seqs = parseFasta(seqFname)
+    meta = readMeta(metaFname)
+
+    baseUrl = "https://wwwdev.ebi.ac.uk/ena/submit/"
+    if isProd:
+        baseUrl = "https://www.ebi.ac.uk/ena/submit/"
+
+    cf = getConfig()
+    auth = (cf["enaUser"], cf["enaPass"])
+
+    sampleUpUrl = baseUrl+"drop-box/submit"
+    upEnaSample(sampleFname, sampleUpUrl, sampleLogFn, auth)
+
+    seqUpUrl = baseUrl + "webin-cli/api/v1/genome/covid-19"
+    upEnaSeq(seqs, meta, seqUpUrl, auth)
 
 def main():
     args, options = parseArgs()
@@ -852,11 +984,27 @@ def main():
             gisaidMetaFn = join(outDir, "gisaid.csv")
             writeGisaidCsv(seqs, meta, gisaidSeqFn, gisaidMetaFn)
 
+        if "ena" in outFmts:
+            sampleFn = join(outDir, "ena.xml")
+            writeEnaXml(meta, io.open(sampleFn, "wt"))
+
     elif cmd=="up-ncbi":
         dataDir = args[1]
         zipFname = join(dataDir, "genbankFtp.zip")
         xmlFname = join(dataDir, "submission.xml")
 
-        putNcbi(zipFname, xmlFname, options.prod)
+        upNcbi(zipFname, xmlFname, options.prod)
+
+    elif cmd=="up-ena":
+        dataDir = args[1]
+        seqFname = join(dataDir, "genbankSeq.fa")
+        xmlFname = join(dataDir, "ena.xml")
+        metaFname = join(dataDir, "genbankSource.tsv")
+
+        nowStr = now()
+        seqLog = join(dataDir, "enaReceiptSeq.%s.xml" % nowStr)
+        sampleLog = join(dataDir, "enaReceiptSample.%s.xml" % nowStr)
+
+        upEna(xmlFname, seqFname, metaFname, seqLog, sampleLog, options.prod)
 
 main()

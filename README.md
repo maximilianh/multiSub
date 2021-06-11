@@ -58,6 +58,8 @@ Convert sequences from seqs.fa with annotations in GISAID format to the director
 
 ## Automated Genbank uploads
 
+NOT FULLY TESTED YET. 
+
 Request an FTP username and password from gb-admin@ncbi.nlm.nih.gov
 
 Create a config file with settings about your group (name, address, email, etc):
@@ -81,3 +83,26 @@ Upload sequences in mySub/ to the NCBI FTP server as a real submission:
 
     multiSub up-ncbi mySub --prod
     
+## Automated ENA uploads
+
+NOT FULLY WORKING YET - pending ENA helpdesk ticket.
+
+Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account.
+Paste the username and password into ~/.multiSub.conf as enaUser and enaPass.
+
+Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start, create a study
+aka project and paste the identifier into ~/.multiSub.conf as enaProj. It starts with "PRJEB".
+
+Then, convert your submission files into the ENA ENA format:
+
+    multiSub convert seqs.fa seqs.tsv mySub -f ena
+
+Upload sequences in mySub/ to the ENA server as a test submission:
+
+    multiSub up-ena mySub
+    
+Upload sequences in mySub/ to the ENA production server as a real submission:
+
+    multiSub up-ena mySub --prod
+    
+You can then find the receipt with your ENA accessions in mySub/enaReceiptSample.DATE.xml.
