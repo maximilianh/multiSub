@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# tested on python2.7 and python3.6 (only up-gisaid requires python3.5)
+#!/usr/bin/env python
+# tested on python2.7 and python3.6 (only 'up-gisaid' requires python3.5)
 
 """
     This program is free software: you can redistribute it and/or modify
@@ -25,6 +25,8 @@ from datetime import datetime
 from io import StringIO # python2.6 and 3
 
 import requests # not installed? run "pip install requests"
+
+isPy2 = (sys.version_info.major == 2)
 
 # all possible values for the --format option
 allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena"]
@@ -73,7 +75,7 @@ config = {
 }
 
 # the first line of all GISAID csv files, from the GISAID docs
-GISAIDHEADERS = "submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
+GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
 
 configDone = False
 
@@ -277,7 +279,7 @@ def readMetaGisaid(fname):
         if len(locParts)==4:
             country = locParts[1]+": "+locParts[3]+", "+locParts[2]
         else:
-            country: locParts[1]
+            country = locParts[1]
         seqMeta["country"] = country
 
         meta[gisaidIsolate] = seqMeta
@@ -380,7 +382,7 @@ def parseTableXls(fname):
         for cell in sheet.row(row_idx):
             row.append(cell.value)
         rows.append(row)
-    return headers, row
+    return headers, rows
 
 def parseTable(fname):
     " read csv or tsv, return (list headers, list of row-tuples) "
@@ -402,6 +404,9 @@ def parseTable(fname):
         #reader = csv.reader(ifh, dialect=deduced_dialect)
         reader = csv.reader(ifh, delimiter=sep, quoting=csv.QUOTE_ALL)
         for row in reader:
+            if isPy2:
+                row = [x.decode("utf8") for x in row]
+
             if headers is None:
                 headers = row
             else:
@@ -729,7 +734,7 @@ def makeNcbiSubXml():
     ncbiUser = c["ncbiUser"]
     uniqueId = now()
 
-    xml = """<?xml version="1.0"?>
+    xml = u"""<?xml version="1.0"?>
 <Submission>
   <Description>
     <Title>multiSub automated submission</Title>
@@ -983,13 +988,13 @@ def upNcbi(zipFname, xmlFname, batchFn, isProd):
     logging.info("make directory %s" % subDir)
 
     logging.info("Uploading "+zipFname)
-    f1 = open(zipFname,'rb')
+    f1 = io.open(zipFname,'rb')
     zipTargetFn = basename(zipFname)
     ftp.storbinary('STOR %s' % zipTargetFn, f1)
     f1.close()
 
     logging.info("Uploading "+xmlFname)
-    f2 = open(xmlFname,'rb')
+    f2 = io.open(xmlFname,'rb')
     ftp.storbinary('STOR submission.xml', f2)
     f2.close()
 
@@ -1011,10 +1016,10 @@ def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
     logging.info("Starting upload to %s" % asmUrl)
 
     if not isfile(accLogFn):
-        accFh = open(accLogFn, "w")
+        accFh = io.open(accLogFn, "w")
         accFh.write("seqId\tisolate\tenaSeqAlias\tenaAccession\n")
     else:
-        accFh = open(accLogFn, "a")
+        accFh = io.open(accLogFn, "a")
 
     cf = getConfig()
     for (seqId, seq) in seqs:
@@ -1086,45 +1091,45 @@ def writeEnaXml(meta, ofh, prefix):
     region = cf["enaRegion"]
     host = cf["enaHost"]
 
-    ofh.write("<SAMPLE_SET>\n")
+    ofh.write(u"<SAMPLE_SET>\n")
     for seqId, seqMeta in meta.items():
         # bug in ENA API: alias cannot contain slashes
         alias = makeEnaAlias(prefix, seqMeta)
 
-        ofh.write('  <SAMPLE alias="%s" center_name = "%s">\n' % (alias, centerName))
-        ofh.write('    <TITLE>Molecular surveillance of SARS-CoV-2</TITLE>\n')
-        ofh.write('    <SAMPLE_NAME>\n')
-        ofh.write('      <TAXON_ID>2697049</TAXON_ID>\n')
-        ofh.write('      <SCIENTIFIC_NAME>Severe acute respiratory syndrome coronavirus 2</SCIENTIFIC_NAME>\n')
-        ofh.write('    </SAMPLE_NAME>\n')
-        ofh.write('    <SAMPLE_ATTRIBUTES>\n')
+        ofh.write(u'  <SAMPLE alias="%s" center_name = "%s">\n' % (alias, centerName))
+        ofh.write(u'    <TITLE>Molecular surveillance of SARS-CoV-2</TITLE>\n')
+        ofh.write(u'    <SAMPLE_NAME>\n')
+        ofh.write(u'      <TAXON_ID>2697049</TAXON_ID>\n')
+        ofh.write(u'      <SCIENTIFIC_NAME>Severe acute respiratory syndrome coronavirus 2</SCIENTIFIC_NAME>\n')
+        ofh.write(u'    </SAMPLE_NAME>\n')
+        ofh.write(u'    <SAMPLE_ATTRIBUTES>\n')
 
         # described here: https://www.ebi.ac.uk/ena/browser/view/ERC000033
         attributes = {
-            "ENA-CHECKLIST" : "ERC000033",
-            "collector name" : collectorName,
-            "collecting institution" : collInst,
-            "geographic location (country and/or sea)" : country,
-            "geographic location (region and locality)" : region,
-            "collection date" : seqMeta["collection-date"],
-            "host common name" : host,
-            "sample capture status" : "active surveillance in response to outbreak",
-            "host scientific name" : "Homo sapiens",
-            "host subject id" : seqId, # not correct, but we have no other identifier
-            "host health state" : "diseased",
-            "host sex" : "not provided",
-            "isolate" : seqMeta["isolate"],
+            u"ENA-CHECKLIST" : u"ERC000033",
+            u"collector name" : collectorName,
+            u"collecting institution" : collInst,
+            u"geographic location (country and/or sea)" : country,
+            u"geographic location (region and locality)" : region,
+            u"collection date" : seqMeta["collection-date"],
+            u"host common name" : host,
+            u"sample capture status" : u"active surveillance in response to outbreak",
+            u"host scientific name" : u"Homo sapiens",
+            u"host subject id" : seqId, # not correct, but we have no other identifier
+            u"host health state" : u"diseased",
+            u"host sex" : u"not provided",
+            u"isolate" : seqMeta["isolate"],
         }
 
         for tag, value in attributes.items():
-            ofh.write('      <SAMPLE_ATTRIBUTE>')
-            ofh.write('<TAG>%s</TAG>' % tag)
-            ofh.write('<VALUE>%s</VALUE>' % value)
-            ofh.write('</SAMPLE_ATTRIBUTE>\n')
-        ofh.write("    </SAMPLE_ATTRIBUTES>\n")
-        ofh.write("  </SAMPLE>\n\n")
+            ofh.write(u'      <SAMPLE_ATTRIBUTE>')
+            ofh.write(u'<TAG>%s</TAG>' % tag)
+            ofh.write(u'<VALUE>%s</VALUE>' % value)
+            ofh.write(u'</SAMPLE_ATTRIBUTE>\n')
+        ofh.write(u"    </SAMPLE_ATTRIBUTES>\n")
+        ofh.write(u"  </SAMPLE>\n\n")
 
-    ofh.write("</SAMPLE_SET>\n")
+    ofh.write(u"</SAMPLE_SET>\n")
     logging.info("Wrote %s" % ofh.name)
 
 def upEnaSample(prefix, xmlFname, upUrl, sampleLogFn, auth):
@@ -1164,7 +1169,7 @@ def downNcbi(ncbiBatchFn, isProd, outFname):
         errAbort("%s does not exist. You need to run up-ncbi succesfully once before "
             "you can run down-ncbi." % ncbiBatchFn)
 
-    ncbiBatch = open(ncbiBatchFn).read()
+    ncbiBatch = io.open(ncbiBatchFn).read()
     logging.info("Read previous NCBI batch ID from %s: '%s'" % (ncbiBatchFn, ncbiBatch))
 
     ftp = connectNcbi(isProd)
