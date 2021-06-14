@@ -5,7 +5,7 @@ sequence to the NCBI Genbank, EBI ENA and GISAID sequence repositories. It can a
 convert between these formats. This tool can be used by a "data
 broker", a single institution that collects sequences from labs and submits
 them to the sequence databases. It's early research software, you will probably 
-find bugs, please open a ticket or email maxh@ucsc.edu if that happens, most of them
+find bugs, please open a ticket on Github or email maxh@ucsc.edu if that happens, most of them
 should be easy to fix now.
 
 ## Overview
@@ -20,39 +20,20 @@ The script takes care of the different ways to format the virus names (for
 example, hCov-19 for GISAID, SARS-CoV-2 for NCBI), translates the different ways to specify 
 the country, checks the date format and adds sequence IDs where needed. It does
 not support more than the date and isolate and country fields, but other fields
-could be easily added.
+can be easily added, just email examples to maxh@ucsc.edu.
 
 Many thanks to Stephan Fuchs and Kyanoush Yahosseini, Robert Koch Institut,
 Berlin, for sending my their Python ENA uploader code, from which I copied. Also
 thanks to the ENA Helpdesk and the NCBI Helpdesk for their quick replies.
 Without all of these people, this program would not have been possible.
 
-## Input 
-The first input is a fasta file with multiple sequences, where each sequence has
-a unique ID.
+## Installation and requirements
 
-The second input file is a comma- or tab-separated table where the
-first column contains the sequence identifier, and the other columns contain
-the sequence annotations, sometimes called meta data, or "source tags" by
-Genbank. The first row includes the field names. 
-For tsv and csv input, the required meta field names are "date" and "isolate".
-For GISAID input, only the fields "covv_location", "covv_collection_date" and 
-"covv_virus_name" are read.
+The script has no dependencies in most cases. Just download it, make it executable and run it:
 
-## Output file formats
-
-By default, files in all possible formats are created. If you only want to create a
-subset, use the -f option and list the formats that you need:
-
-- "ncbi" - for manual Genbank upload, as a single fasta file with integrated tags: genbank.seqAndSource.fa
-  For manual upload on https://submit.ncbi.nlm.nih.gov/sarscov2/
-- "ncbi-ftp" - for automated Genbank upload: genbankFtp.zip + submission.xml. See below for details.
-- "gisaid" - for GISAID upload in .csv format.
-- "ena" - for ENA automated sample uploads in XML format.
-
-The files seqs.fa and meta.tsv will always be created.
-
-## Requirements
+    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+    chmod a+x multiSub
+    multiSub --help
 
 This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
 this script has no dependencies.
@@ -62,12 +43,42 @@ GISAID xls import requires the xlrd Python package that you can install with
 --user".  If you use Mac OSX and do not have pip installed yet, run the command
 "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
+Using Microsoft Windows ? Please contact me at maxh@ucsc.edu.
+
+## Input 
+
+The first input is a fasta file with multiple sequences, where each sequence has
+a unique ID.
+
+The second input file is a comma- or tab-separated table where the
+first column contains the sequence identifier, and the other columns contain
+the sequence annotations, sometimes called meta data, or "source tags" by
+NCBI. The first row contains the field names, sometimes called "headers". 
+
+The second file can be in NCBI, ENA or GISAID format. For tsv and csv input,
+the required meta field names are "date" and "isolate". For GISAID input, only
+the fields "covv_location", "covv_collection_date" and "covv_virus_name" are 
+used at the moment, both .xls and .csv GISAID files can be read.
+
+## Output file formats
+
+By default, files in all possible formats are created. If you only want to create a
+subset, use the -f option and list the formats that you need:
+
+- "ncbi" - for manual Genbank upload, as a single fasta file with integrated tags: genbank.seqAndSource.fa
+  For manual sequence upload on https://submit.ncbi.nlm.nih.gov/sarscov2/
+- "ncbi-ftp" - for automated Genbank upload: genbankFtp.zip + submission.xml. See below for details.
+- "gisaid" - for GISAID upload in .csv format: gisaid.csv and gisaid.fa
+- "ena" - for ENA automated sample uploads in XML format: ena.xml
+
+The files seqs.fa and meta.tsv will always be created.
+
 ## Convert files
 
-Convert sequences from seqs.fa with annotations (fields: seqId, date, isolate) in seqs.tsv to 
-the directory mySub/ and create files for NCBI, ENA and GISAID upload:
+Convert sequences from myseqs.fa with annotations (fields: seqId, date, isolate) in myseqs.tsv to 
+the directory mySub/ and create files for NCBI, ENA and GISAID at the same time:
 
-    multiSub conv seqs.fa seqs.tsv mySub
+    multiSub conv myseqs.fa myseqs.tsv mySub
 
 Read all sequences and all annotation files (csv, tsv, xls) from mySeqs/ and write
 files for NCBI and GISAID into mySub/:
@@ -84,7 +95,9 @@ just click the "Continue" buttons.
 If you receive an email with error messages some times later, you can download
 the error report file and provide it via --skipFile to "multiSub conv".
 Any sequences with errors will then be skipped. This will create a new
-ncbiSeqsAndSource.fa file which you can upload.
+ncbiSeqsAndSource.fa file which you can upload. However, you can also check 
+the box "ignore errors" during the submission so you do not have to worry
+about skipping the sequences with errors.
 
 ## Manual ENA uploads
 
@@ -99,38 +112,43 @@ Request an FTP username and password from gb-admin@ncbi.nlm.nih.gov
 Make sure that you have run "multiSub init" and have a file ~/.multiSub/config.
 
 Edit the file ~/.multiSub/config with your institutional information, name,
-authors, email, etc. and also the NCBI username and NCBI password.
+authors, email, etc. and also the NCBI username and NCBI password under "ncbiUser" and
+"ncbiPass".
 
 For more details see https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/submit/public-docs/genbank/SARS-CoV-2/ 
 
 Convert your submission files into the NCBI FTP format:
 
-    multiSub convert seqs.fa seqs.tsv mySub -f ncbi-ftp
+    multiSub conv mySeqs.fa mySeqs.tsv mySub -f ncbi-ftp
 
 Upload sequences in mySub/ to the NCBI FTP server as a test submission:
 
     multiSub up-ncbi mySub
     
-Wait for a few hours. Retrieve the status and accessions of your submission and
-write them to mySub/ncbiAcc.tsv
+Wait for a few hours. Retrieve the status and accessions of your submission
+and write them to the file mySub/ncbiReport.xml
 
-    multiSub down-ncbi mySub --prod
+    multiSub down-ncbi mySub
     
 Upload sequences in mySub/ to the NCBI FTP server as a real submission:
 
     multiSub up-ncbi mySub --prod
 
+Download the report:
+
+    multiSub down-ncbi mySub --prod
+
 ## Automated ENA uploads
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account.
-Paste your new username and password into ~/.multiSub.conf under enaUser and enaPass.
+Paste your new username and password into ~/.multiSub/config under enaUser and enaPass.
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start, create a study
 aka project and paste its identifier into ~/.multiSub.conf as enaProj. It starts with "PRJEB".
 
-Then, convert your submission files into the ENA ENA format:
+Then, convert your submission files to the ENA XML format:
 
-    multiSub conv seqs.fa seqs.tsv mySub
+    multiSub conv mySeqs.fa mySeqs.tsv mySub
 
 Upload sequences in mySub/ to the ENA server as a test submission:
 
@@ -144,21 +162,25 @@ You can then find the raw receipt with your ENA accessions in mySub/enaReceiptSa
 and a parsed tsv table with the accessions and your internal identifiers in mySub/enaAcc.tsv
 
 The sequence upload is rather slow, every sequence takes a few seconds. Split the input
-files into chunks and run the script in parallel if you have several thousand sequences.
+files into chunks and run the script in parallel if you have several thousand sequences. 
+Contact us if you have trouble with this step.
 
 If your sequence or sample uploads fail somewhere within a batch and you change
 the meta data or sequences, note that some of them may have been uploaded
 already. To force a re-upload of everything, use the --prefix option. If the
 error happened on the production server, not in testing mode, it may be best to
 read the ENA API documentation on how to reset your upload (look at the receipt XML)
-or contact the ENA helpdesk. 
+or contact the ENA helpdesk or us. 
 
 ## Automated GISAID uploads
 
-Download the file https://www.epicov.org/content/gisaid_uploader into the same directory where 
-multiSub is located or in some directory in your PATH.
+NOTE: I was unable to test this, because GISAID does not give me an upload token. It should
+work though.
 
 Email CLIsupport@gisaid.org and request an upload token.
+
+Download the file https://www.epicov.org/content/gisaid_uploader into the same directory where 
+multiSub is located or in some directory in your PATH.
 
 Run 
 
@@ -172,4 +194,4 @@ And upload it:
 
     multiSub up-gisaid mySub
 
-The results are written to mySub/gisaidFail.csv
+Error messages are written to mySub/gisaidFail.csv
