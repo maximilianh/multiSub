@@ -15,6 +15,8 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+# Written by Maximilian Haeussler, maxh@ucsc.edu, with a lot of input from
+# Kyanoush Yahosseini, RKI, for the ENA API uploader
 
 import logging, sys, optparse, os, io, json, csv, zipfile, textwrap, subprocess
 from collections import defaultdict, OrderedDict
@@ -69,6 +71,9 @@ config = {
         "postal-code" : "95064"
     }
 }
+
+# the first line of all GISAID csv files, from the GISAID docs
+GISAIDHEADERS = "submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
 
 configDone = False
 
@@ -234,21 +239,22 @@ def parseFasta(fname):
       yield (None, None)
 
 def readMetaGisaid(fname):
-    " read meta data in GISAID format and convert to our internal dictionary: meta[isolate] -> dict with date -> date  "
-    from xlrd import open_workbook
-    book = open_workbook(fname,on_demand=True)
-    sheet = book.sheet_by_index(1)
-    headers = [sheet.col_values(i)[0] for i in range(sheet.ncols) if sheet.col_values(i)[0]]
+    """ read meta data in GISAID format and convert to our internal dictionary:
+    meta[isolate] -> dict with date -> date. Only imported fields are: 
+    collection_date, virus_name and location. They are converted to the 
+    fields: date, isolate and country. 'location' is passed through. """
+
+    if fname.lower().endswith(".xls"):
+        headers, rows = parseTableXls(fname)
+    else:
+        headers, rows = parseTable(fname)
 
     dateIdx = headers.index("covv_collection_date")
     isolateIdx = headers.index("covv_virus_name")
     locIdx = headers.index("covv_location")
 
     meta = dict()
-    for row_idx in range(2, sheet.nrows):    # Iterate through rows
-        row = []
-        for cell in sheet.row(row_idx):
-            row.append(cell.value)
+    for row in rows:
         date = row[dateIdx]
         checkDate(date)
 
@@ -309,8 +315,9 @@ def checkMeta(meta):
             checkDate(m["collection-date"])
 
 def readMeta(fname):
-    """ read meta data in format csv, tsv or xls. return as dict with 'seqId' -> OrderedDict of 'key':'value'
-    Standardize field names to: date and isolate
+    """ read meta data in format csv, tsv or xls. return as dict with 'seqId'
+    -> OrderedDict of 'key':'value' Standardize field names to: date and
+    isolate
     """
     if fname.endswith(".xls"):
         meta = readMetaGisaid(fname)
@@ -324,6 +331,11 @@ def readMetaText(fname):
     Current field names are: "date" and "isolate".
     Standardize field names to: date and isolate.
     """
+    # GISAID files can also be in .csv format
+    line1 = io.open(fname).readline().strip()
+    if line1==GISAIDHEADERS:
+        return readMetaGisaid(fname)
+
     headers, rows = parseTable(fname)
 
     meta = dict()
@@ -331,9 +343,8 @@ def readMetaText(fname):
     for row in rows:
         lNo += 1
         if len(row) != len(headers):
-            logging.error("Line %d: number of fields is not identical to number of header fields. "
+            errAbort("Line %d: number of fields is not identical to number of header fields. "
                 "Headers are: %s, fields are %s" % (lNo, repr(row), repr(headers)))
-            sys.exit(0)
 
         seqId = row[0]
 
@@ -349,7 +360,27 @@ def readMetaText(fname):
             d[key] = row[colIdx]
         meta[seqId] = d
 
+    if headers == GISAIDHEADERS.split(","):
+        meta = metaFromGisaid(meta)
+
     return meta
+
+def parseTableXls(fname):
+    " like parseTable, but for xls files "
+    from xlrd import open_workbook # not found? install with 'pip install xlrd --user'
+    logging.info("Parsing xls file '%s'" % fname)
+
+    book = open_workbook(fname,on_demand=True)
+    sheet = book.sheet_by_index(1)
+    headers = [sheet.col_values(i)[0] for i in range(sheet.ncols) if sheet.col_values(i)[0]]
+
+    rows = []
+    for row_idx in range(2, sheet.nrows):    # Iterate through rows
+        row = []
+        for cell in sheet.row(row_idx):
+            row.append(cell.value)
+        rows.append(row)
+    return headers, row
 
 def parseTable(fname):
     " read csv or tsv, return (list headers, list of row-tuples) "
@@ -365,7 +396,7 @@ def parseTable(fname):
     rows = []
 
     with openFile(fname) as ifh:
-        # sniffer was too unreliable on real files
+        # python's sniffer was too unreliable on real files
         #sample = ifh.read(80)
         #deduced_dialect = csv.Sniffer().sniff(sample)
         #reader = csv.reader(ifh, dialect=deduced_dialect)
@@ -734,6 +765,9 @@ def metaToNcbiFtp(meta):
         newMeta[seqId] = metaDict
     return newMeta
 
+def metaFromGisaid(meta):
+    " convert GISAID to NCBI meta format "
+
 def importIsolate(isolate, date):
     " convert various forms of isolate names to our internal format (NBCI) "
     # NCBI format is: SARS-CoV-2/human/CHN/Wuhan_X1/2019
@@ -825,7 +859,7 @@ def writeGisaid(seqs, meta, seqFn, metaFn):
 
     cf = getConfig()
     metaFh = io.open(metaFn, "wt")
-    metaFh.write("submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors\n")
+    metaFh.write(GISAIDHEADERS+"\n")
 
     for seqId, metaDict in meta.items():
         submitter = cf["gisaidUser"]
