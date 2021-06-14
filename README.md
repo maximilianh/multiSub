@@ -13,8 +13,8 @@ should be easy to fix now.
 multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID xls format.
 It will make some effort to clean the input data, e.g. skip missing sequences
 or remove empty meta data and warn about it. It can then create one or multiple output files, 
-in NCBI, NCBI-tag, NCBI-ftp, ENA-xml or GISAID-csv format and upload to NCBI and ENA. 
-An upload for GISAID is planned.
+in NCBI, NCBI-tag, NCBI-ftp, ENA-xml or GISAID-csv format and directly upload
+to NCBI, ENA or GISAID.
 
 The script takes care of the different ways to format the virus names (for
 example, hCov-19 for GISAID, SARS-CoV-2 for NCBI), translates the different ways to specify 
@@ -23,7 +23,7 @@ not support more than the date and isolate and country fields, but other fields
 can be easily added, just email examples to maxh@ucsc.edu.
 
 Many thanks to Stephan Fuchs and Kyanoush Yahosseini, Robert Koch Institut,
-Berlin, for sending my their Python ENA uploader code, from which I copied. Also
+Berlin, for sending me their Python ENA uploader code, from which I copied. Also
 thanks to the ENA Helpdesk and the NCBI Helpdesk for their quick replies.
 Without all of these people, this program would not have been possible.
 
@@ -36,33 +36,34 @@ The script has no dependencies in most cases. Just download it, make it executab
     multiSub --help
 
 This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
-this script has no dependencies.
+you do not need to do anything else. GISAID xls import requires the xlrd Python
+package. You can install it with "pip install xlrd" or, if you are not
+administrator, with "pip install xlrd --user".  If you use Mac OSX and do not
+have pip installed yet, run the command "curl
+https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
-GISAID xls import requires the xlrd Python package that you can install with
-"pip install xlrd" or, if you are not administrator, with "pip install xlrd
---user".  If you use Mac OSX and do not have pip installed yet, run the command
-"curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
-
-Using Microsoft Windows ? Please contact me at maxh@ucsc.edu.
+Using Microsoft Windows ? Please contact me at maxh@ucsc.edu. The script runs
+in the Windows WSL, but I can also provide a normal Windows .exe version, if that is helpful.
 
 ## Input 
 
 The first input is a fasta file with multiple sequences, where each sequence has
 a unique ID.
 
-The second input file is a comma- or tab-separated table where the
+The second input file is the usual comma- or tab-separated table where the
 first column contains the sequence identifier, and the other columns contain
 the sequence annotations, sometimes called meta data, or "source tags" by
 NCBI. The first row contains the field names, sometimes called "headers". 
-
-The second file can be in NCBI, ENA or GISAID format. For tsv and csv input,
+This file can be in NCBI, ENA or GISAID format. For tsv and csv input,
 the required meta field names are "date" and "isolate". For GISAID input, only
 the fields "covv_location", "covv_collection_date" and "covv_virus_name" are 
-used at the moment, both .xls and .csv GISAID files can be read.
+used at the moment. GISAID files can be in .xls or .csv format.
 
 ## Output file formats
 
-By default, files in all possible formats are created. If you only want to create a
+The basic files seqs.fa and meta.tsv will always be created.
+
+By default, files in all possible output formats are created. If you only want to create a
 subset, use the -f option and list the formats that you need:
 
 - "ncbi" - for manual Genbank upload, as a single fasta file with integrated tags: genbank.seqAndSource.fa
@@ -71,9 +72,8 @@ subset, use the -f option and list the formats that you need:
 - "gisaid" - for GISAID upload in .csv format: gisaid.csv and gisaid.fa
 - "ena" - for ENA automated sample uploads in XML format: ena.xml
 
-The files seqs.fa and meta.tsv will always be created.
 
-## Convert files
+## Example: Convert files
 
 Convert sequences from myseqs.fa with annotations (fields: seqId, date, isolate) in myseqs.tsv to 
 the directory mySub/ and create files for NCBI, ENA and GISAID at the same time:
@@ -175,7 +175,7 @@ or contact the ENA helpdesk or us.
 ## Automated GISAID uploads
 
 NOTE: I was unable to test this, because GISAID does not give me an upload token. It should
-work though.
+work though. Please contact me if you were able to test it or would share a token for testing.
 
 Email CLIsupport@gisaid.org and request an upload token.
 
@@ -194,4 +194,4 @@ And upload it:
 
     multiSub up-gisaid mySub
 
-Error messages are written to mySub/gisaidFail.csv
+GISAID upload error messages are written to mySub/gisaidFail.csv
