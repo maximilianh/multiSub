@@ -83,6 +83,8 @@ the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same tim
 
     ./multiSub conv mySeqs.fa mySeqs.tsv mySub
 
+A copy of the output files is here: https://genome-test.gi.ucsc.edu/~max/multiSub/out/ucsc1/
+
 Read all sequences and all annotation files (csv, tsv, xls) from mySeqs/ and write
 files for NCBI and GISAID into mySub/:
 
