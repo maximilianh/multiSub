@@ -10,9 +10,9 @@ should be easy to fix now.
 
 ## Overview
 
-multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID xls format.
-It will make some effort to clean the input data, e.g. skip missing sequences
-or remove empty meta data and warn about it. It can then create one or multiple output files, 
+multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID (xls or csv) formats.
+It will make some effort to clean the input data, e.g. skip missing sequences, strip flanking Ns,
+or remove empty meta data and output warnings if that happens. It can then create one or multiple output files, 
 in NCBI, NCBI-tag, NCBI-ftp, ENA-xml or GISAID-csv format and directly upload
 to NCBI, ENA or GISAID.
 
@@ -29,11 +29,22 @@ Without all of these people, this program would not have been possible.
 
 ## Installation and requirements
 
-The script has no dependencies in most cases. Just download it, make it executable and run it:
+The script has no dependencies in most cases. Just download it:
 
     wget https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+
+or:
+ 
+    curl -O https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+    
+Make it executable:
+
     chmod a+x multiSub
-    multiSub --help
+
+And run it:
+
+    ./multiSub --help
+
 
 This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
 you do not need to do anything else. If you want to read GISAID xls files, the
@@ -42,8 +53,9 @@ xlrd" or, if you are not administrator, with "pip install xlrd --user".  If you
 use Mac OSX and do not have pip installed yet, run the command "curl
 https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
-Using Microsoft Windows ? Please contact me at maxh@ucsc.edu. The script runs
-in the Windows WSL, but I can also provide a normal Windows .exe version, if that is helpful.
+Using Microsoft Windows ? Little command line experience? Please contact me at maxh@ucsc.edu. The script runs
+in the Windows WSL, but I can also provide a normal Windows .exe version, if that is helpful. I could make it 
+so that you only have to drag-and-drop a folder onto the program in Windows, if that is helpful.
 
 ## Input 
 
