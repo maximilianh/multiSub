@@ -1,0 +1,64 @@
+# general info, used for GISAID / ENA files
+# format: (lastname, firstname, middle initial)
+contact = ("Doe", "John", "M")
+email = "johndoe@gmail.com"
+phone = "8311230333"
+# three letter code of country, used when generating ICTV isolate names, e.g. FRA
+country = "USA" 
+# full name of country, used for NCBI export, e.g. France
+# see https://www.ncbi.nlm.nih.gov/genbank/collab/country/
+ncbiCountry = "USA"
+
+affiliation = {
+"affil" : "University of California, Santa Cruz",
+"div" : "Genomics Institute",
+"city" : "Santa Cruz",
+"sub" : "CA",
+"country" : "USA", 
+"street" : "1156 High Street, MS Genomics Institute",
+"postal-code" : "95064"
+}
+
+# used for GISAID and ENA
+platform = "Illumina NextSeq 550"
+host_common = "human" # common name of host, all lowercase
+
+authors = [
+    # format: (lastname, firstname, middle initial)
+    ("Haussler","David", ""),
+    ("Hinrichs", "Angie", ""),
+]
+
+# for the GISAID csv file
+gisaidUser =  "doej"
+gisaidLocation =  "North America / USA / California / Santa Cruz"
+gisaid_host =  host_common.capitalize()
+gisaid_technology = platform
+gisaid_assembly_method = ""
+
+# for automated NCBI uploads via FTP
+ncbiUser = "MYPASS"
+ncbiPass = "MYUSER"
+
+# For ENA uploads via the API
+# Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account and enter below
+enaUser = "Webin-123sd"
+enaPass = "X234xcc"
+# Create a study at https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start 
+# and paste its identifier (PRJEBxxx) below
+enaProj = "PRJEB12323"
+
+# build GISAID submitter info strings from affiliation above
+gisaid_orig_lab = affiliation["affil"]+ ", " +affiliation["div"]
+gisaid_orig_lab_addr = affiliation["street"]+", "+affiliation["city"]+" "+affiliation["sub"]+ " "+affiliation["postal-code"] + ", " + affiliation["country"]
+
+# build ENA submitter strings from general ones and affiliation
+# see https://www.ebi.ac.uk/ena/browser/view/ERC000033
+enaHost = host_common
+enaPlatform = platform
+enaCenter = affiliation["div"]+ ", " +affiliation["affil"]
+enaCollector = contact[1]+" "+contact[0] # mandatory field, sigh
+enaCollInst = enaCenter+", "+affiliation["street"]+", "+affiliation["city"]+" "+affiliation["sub"]+ " "+affiliation["postal-code"] + ", " + affiliation["country"]
+enaCountry = affiliation["country"]
+enaRegion = affiliation["city"]+", "+affiliation["sub"]
+
