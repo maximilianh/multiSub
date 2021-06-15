@@ -41,6 +41,19 @@ config = {
     "ncbi-host" : "human",
     "ncbi-genome" : "SARS-CoV-2",
 
+    # please do not change these values here, run "multiSub init" and change the values in 
+    # ~/.multiSub/config
+
+    # bogus values:
+    # overwritten by ~/.multiSub/config, these bogus values are only there so the script can run 
+    # without a config file
+    "enaCenter" : "UCSC Genomics Institute",
+    "enaCollector" : "UCSC Medical Diagnostics Lab",
+    "enaCollInst" : "",
+    "enaCountry" : "USA",
+    "enaRegion" : "CA",
+    "enaHost" : "human",
+
     # bogus values:
     # overwritten by ~/.multiSub/config, these bogus values are only there so the script can run 
     # without a config file

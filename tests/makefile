@@ -11,6 +11,7 @@ test-ucsc1: mkdir
 
 test-bulk1: mkdir
 	mkdir -p bulk1
+	rm -f bulk1/*.fa bulk1/*.tsv
 	cp gisaid1/* ucsc1/* bulk1
 	../multiSub convDir bulk1 expected/bulk1/
 
