@@ -24,13 +24,16 @@ from os.path import join, basename, dirname, isfile, isdir, expanduser
 from datetime import datetime
 from io import StringIO # python2.6 and 3
 
-import requests # not installed? run "pip install requests"
+# the packages requests, urllib.requests, ftplib and xlrd are imported within the script, to 
+# improve startup time and also lower the dependency footprint of the basic operations
 
 isPy2 = (sys.version_info.major == 2)
 
 # all possible values for the --format option
 allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena"]
 
+# mini config, these values are only there so the script can run without a config file
+# again this is done to keep the dependencies of the basic features to a single file
 config = {
     # three-letter country abbreviation, for ICTV isolate names, e.g. FRA
     "country" : "USA",
@@ -111,7 +114,7 @@ def getConfig():
             exec(io.open(cfgFname).read(), config)
         else:
             logging.info("%s does not exist. Using default values. "\
-                "Please run'multiSub init' and then edit the config file to your needs" % cfgFname)
+                "Please run 'multiSub init' and then edit the config file to your needs" % cfgFname)
         configDone = True
     return config
 
@@ -122,11 +125,12 @@ def parseArgs():
     parser = optparse.OptionParser("""usage: %prog [options] [command] [arguments]- prepare genbank submission file
     Commands:
         init - write an empty config template to ~/.multiSub/config
-        conv faFname tsvFname outDir - converts a fasta + tsv/csv/xls to NCBI format in outDir
-        up-ncbi outDir - upload the files in outDir to NCBI
+        conv faFname tsvFname outDir - converts a fasta + tsv/csv/xls to files in outDir
+        convDir inDir outDir - converts all fa/tsv/csv/xls files in inDir to outDir
+        up-ncbi outDir - upload the files ncbiFtp.zip/submission.xml in outDir to NCBI
         down-ncbi outDir - download NCBI status messages to outDir
-        up-ena outDir - upload the files in outDir to ENA, write receipt to outDir
-        up-gisaid outDir - upload the files in outDir to GISAID
+        up-ena outDir - upload the file ena.xml+seqs in outDir to ENA, write receipt to outDir
+        up-gisaid outDir - upload the files gisaid.* in outDir to GISAID
 
     Examples:
         multiSub init
@@ -135,7 +139,7 @@ def parseArgs():
         multiSub up-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as test submission
         multiSub up-ncbi mySub --prod - upload NCBI files in mySub to NCBI's FTP server as final submission
         multiSub down-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as final submission
-        multiSub up-ena mySub - upload ENA files in mySub to ENA server as final submission
+        multiSub up-ena mySub --prod - upload ENA files in mySub to ENA server as final submission
         multiSub up-gisaid mySub - upload GISAID files in mySub to GISAID server as a final submission
     """)
 
@@ -144,17 +148,15 @@ def parseArgs():
     parser.add_option("-s", "--skip", dest="skipFile",
         action="store", help="file with at least one column with the sequence "
         "identifier of sequences to remove. Can be the raw NCBI error report text file. These "
-        "sequences and their annotations will be skipped.")
-    #parser.add_option("", "--skipFa", dest="skipFa", action="store",
-        #help="file to write skipped sequences to.")
+        "sequences and their annotations will be skipped during the convert step.")
     parser.add_option("-f", "--format", dest="format", action="store",
         default="all",
         help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
     parser.add_option("", "--prod", dest="prod", action="store_true", help="For up-ncbi and up-ena: use the Production upload server, not Testing")
     parser.add_option("", "--prefix", dest="prefix", action="store", default="",
-        help="For ena and up-ena: a prefix for all internal IDs. If you want to force a "
+        help="For conv/confDir/up-ena: a prefix for all internal ENA IDs. If you want to force a "
         "re-upload of everything, set this to a random short string, and keep it the same "
-        "for the 'convert' and 'up-ena' steps")
+        "for the 'convert' and 'up-ena' steps.")
     parser.add_option("", "--test", dest="test", action="store_true", help="run tests")
     (options, args) = parser.parse_args()
 
@@ -1026,6 +1028,8 @@ def upNcbi(zipFname, xmlFname, batchFn, isProd):
 
 def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
     " upload sequences to ENA "
+    import requests # not installed? run "pip install requests"
+
     logging.info("Starting upload to %s" % asmUrl)
 
     if not isfile(accLogFn):
@@ -1147,6 +1151,7 @@ def writeEnaXml(meta, ofh, prefix):
 
 def upEnaSample(prefix, xmlFname, upUrl, sampleLogFn, auth):
     " upload sample meta data to ENA "
+    import requests # not installed? run "pip install requests"
     subXml = makeEnaSubmitXml()
 
     logging.info("Sending %s to %s" % (xmlFname, upUrl))

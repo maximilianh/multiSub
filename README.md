@@ -36,10 +36,10 @@ The script has no dependencies in most cases. Just download it, make it executab
     multiSub --help
 
 This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
-you do not need to do anything else. GISAID xls import requires the xlrd Python
-package. You can install it with "pip install xlrd" or, if you are not
-administrator, with "pip install xlrd --user".  If you use Mac OSX and do not
-have pip installed yet, run the command "curl
+you do not need to do anything else. If you want to read GISAID xls files, the
+script needs the xlrd Python package. You can install it with "pip install
+xlrd" or, if you are not administrator, with "pip install xlrd --user".  If you
+use Mac OSX and do not have pip installed yet, run the command "curl
 https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
 Using Microsoft Windows ? Please contact me at maxh@ucsc.edu. The script runs
@@ -174,7 +174,7 @@ or contact the ENA helpdesk or us.
 
 ## Automated GISAID uploads
 
-NOTE: I was unable to test this, because GISAID does not give me an upload token. It should
+NOTE: I was unable to test this, because GISAID will not send me an upload token. It should
 work though. Please contact me if you were able to test it or would share a token for testing.
 
 Email CLIsupport@gisaid.org and request an upload token.
