@@ -1,0 +1,114 @@
+Sequence	Category	Subcategory	Description
+3000584029_20210112_D4_950	sarscov2_annotation	DUPLICATE_REGIONS	similarity to a model region occurs more than once [28154-28182 (len 29 >= 20) hits 2 (3166.0 bits) and 3 (54.7 bits) (model:28154..29895,28154..28182 seq:28179..29920,27999..28027)]
+3000584029_20210112_D4_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [151 nt overlap b/t low similarity region of length 151 (28028..28178) and annotated feature (27890..28284), strand: +]
+3000584029_20210112_D4_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [151 nt overlap b/t low similarity region of length 151 (28028..28178) and annotated feature (27890..28284), strand: +]
+3000584029_20210114_A1_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27391..27603 (stop shifted 152 nt)]
+3000584029_20210114_A1_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 27576..27755 (180 nt, avgpp: 0.973) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27575(1);]
+3000584029_20210114_A1_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [176 > 8 (strand:+ CM:27755 blastx:27579)]
+3000584029_20210114_A1_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [365]
+3000584029_20210114_F9_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27360..27572 (stop shifted 152 nt)]
+3000584029_20210114_F9_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 27545..27724 (180 nt, avgpp: 0.973) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27544(1);]
+3000584029_20210114_F9_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [176 > 8 (strand:+ CM:27724 blastx:27548)]
+3000584029_20210114_F9_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [365]
+3000584029_20210120_A11_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 231..3497 (stop shifted 18024 nt)]
+3000584029_20210120_A11_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 231..3490 (3260 nt, avgpp: 0.975) on + strand are inconsistent with dominant frame (+2); inserts:3490; deletes:none;]
+3000584029_20210120_A11_950	sarscov2_annotation	INDEFINITE_ANNOTATION_START	protein-based alignment does not extend close enough to nucleotide-based alignment 5' endpoint [3274 > 5 (strand:+ CM:231 blastx:231 + 3274)]
+3000584029_20210120_A11_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [21292]
+3000584029_20210120_A11_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 231..3497 (stop shifted 9952 nt)]
+3000584029_20210120_A11_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 231..3490 (3260 nt, avgpp: 0.975) on + strand are inconsistent with dominant frame (+2); inserts:3490; deletes:none;]
+3000584029_20210120_A11_950	sarscov2_annotation	INDEFINITE_ANNOTATION_START	protein-based alignment does not extend close enough to nucleotide-based alignment 5' endpoint [3274 > 5 (strand:+ CM:231 blastx:3505)]
+3000584029_20210120_A11_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [13219]
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [5836]
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210120_A11_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+3000584029_20210130_C6_950	sarscov2_annotation	DUPLICATE_REGIONS	similarity to a model region occurs more than once [28154-28182 (len 29 >= 20) hits 2 (3160.0 bits) and 3 (54.7 bits) (model:28154..29890,28154..28182 seq:28173..29909,27993..28021)]
+3000584029_20210130_C6_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [151 nt overlap b/t low similarity region of length 151 (28022..28172) and annotated feature (27884..28278), strand: +]
+3000584029_20210130_C6_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [151 nt overlap b/t low similarity region of length 151 (28022..28172) and annotated feature (27884..28278), strand: +]
+6000263704_20210217_A2_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [24 > 6 (strand:+ CM:29627 blastx:29603, no valid stop codon in CM prediction)]
+6000263704_20210217_A2_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY_END	region within annotated feature at 3' end of sequence lacks significant similarity [6 nt overlap b/t low similarity region of length 35 (29605..29639) and annotated feature (29582..29610), strand: +]
+6000263704_20210223_E5_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210223_E5_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 29492..29527 (stop shifted 73 nt)]
+6000263704_20210223_E5_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 29492..29509 (18 nt, avgpp: 0.929) on + strand are inconsistent with dominant frame (+2); inserts:none; deletes:29509(8);]
+6000263704_20210223_E5_950	sarscov2_annotation	INDEFINITE_ANNOTATION_START	protein-based alignment does not extend close enough to nucleotide-based alignment 5' endpoint [13 > 5 (strand:+ CM:29492 blastx:29505)]
+6000263704_20210223_E5_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [109]
+6000263704_20210301_G7_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY_END	region within annotated feature at 3' end of sequence lacks significant similarity [5 nt overlap b/t low similarity region of length 30 (29621..29650) and annotated feature (29597..29625), strand: +]
+6000263704_20210303_A9_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210309_G9_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210310_A4_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27357..27548 (stop shifted 160 nt)]
+6000263704_20210310_A4_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 27542..27708 (167 nt, avgpp: 0.974) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27541(14);]
+6000263704_20210310_A4_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [166 > 8 (strand:+ CM:27708 blastx:27542)]
+6000263704_20210310_A4_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [352]
+6000263704_20210310_H10_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210313_C1_950	sarscov2_annotation	DUPLICATE_REGIONS	similarity to a model region occurs more than once [28234-28263 (len 30 >= 20) hits 2 (3035.0 bits) and 3 (56.5 bits) (model:28234..29894,28234..28263 seq:28257..29917,27818..27847)]
+6000263704_20210313_C1_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27751..27843 (stop shifted 34 nt)]
+6000263704_20210313_C1_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	low confidence potential frameshift in CDS [nucleotide alignment of positions 27825..27877 (53 nt, avgpp: 0.589) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27824(5);]
+6000263704_20210313_C1_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [94 > 35 (strand:+ CM:27877 blastx:27877 - 94)]
+6000263704_20210313_C1_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [127]
+6000263704_20210313_C1_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [373 nt overlap b/t low similarity region of length 409 (27848..28256) and annotated feature (27884..28282), strand: +]
+6000263704_20210313_C1_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [373 nt overlap b/t low similarity region of length 409 (27848..28256) and annotated feature (27884..28282), strand: +]
+6000263704_20210315_H11_950	sarscov2_annotation	DUPLICATE_REGIONS	similarity to a model region occurs more than once [28234-28263 (len 30 >= 20) hits 2 (3027.0 bits) and 3 (56.5 bits) (model:28234..29894,28234..28263 seq:28225..29885,27786..27815)]
+6000263704_20210315_H11_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27719..27811 (stop shifted 34 nt)]
+6000263704_20210315_H11_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	low confidence potential frameshift in CDS [nucleotide alignment of positions 27793..27845 (53 nt, avgpp: 0.589) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27792(5);]
+6000263704_20210315_H11_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [94 > 35 (strand:+ CM:27845 blastx:27845 - 94)]
+6000263704_20210315_H11_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [127]
+6000263704_20210315_H11_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [373 nt overlap b/t low similarity region of length 409 (27816..28224) and annotated feature (27852..28250), strand: +]
+6000263704_20210315_H11_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [373 nt overlap b/t low similarity region of length 409 (27816..28224) and annotated feature (27852..28250), strand: +]
+6000263704_20210316_A5_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210316_B1_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210316_C2_950	sarscov2_annotation	DUPLICATE_REGIONS	similarity to a model region occurs more than once [28234-28262 (len 29 >= 20) hits 2 (3055.0 bits) and 3 (54.7 bits) (model:28234..29897,28234..28262 seq:28261..29924,27823..27851)]
+6000263704_20210316_C2_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27756..27848 (stop shifted 34 nt)]
+6000263704_20210316_C2_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	low confidence potential frameshift in CDS [nucleotide alignment of positions 27830..27882 (53 nt, avgpp: 0.630) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27829(5);]
+6000263704_20210316_C2_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [94 > 36 (strand:+ CM:27882 blastx:27882 - 94)]
+6000263704_20210316_C2_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [127]
+6000263704_20210316_C2_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [372 nt overlap b/t low similarity region of length 409 (27852..28260) and annotated feature (27889..28286), strand: +]
+6000263704_20210316_C2_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [372 nt overlap b/t low similarity region of length 409 (27852..28260) and annotated feature (27889..28286), strand: +]
+6000263704_20210317_A1_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000263704_20210317_B2_950	sarscov2_annotation	DELETION_OF_NT	too large of a deletion in nucleotide-based alignment of CDS feature [nucleotide alignment delete of length 35>27 starting at reference nucleotide posn 27923 on strand +]
+6000265308_20210218_B12_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 235..11112 (stop shifted 10411 nt)]
+6000265308_20210218_B12_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 11051..21523 (10473 nt, avgpp: 0.975) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:11050(1);]
+6000265308_20210218_B12_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [10456 > 8 (strand:+ CM:21523 blastx:11067)]
+6000265308_20210218_B12_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [21290]
+6000265308_20210218_B12_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 235..11112 (stop shifted 2339 nt)]
+6000265308_20210218_B12_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	high confidence potential frameshift in CDS [nucleotide alignment of positions 11051..13451 (2401 nt, avgpp: 0.975) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:11050(1);]
+6000265308_20210218_B12_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [2384 > 8 (strand:+ CM:13451 blastx:11067)]
+6000265308_20210218_B12_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [13217]
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [869]
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_B12_950	sarscov2_annotation	PEPTIDE_TRANSLATION_PROBLEM	mat_peptide may not be translated because its parent CDS has a problem
+6000265308_20210218_D4_950	sarscov2_annotation	DUPLICATE_REGIONS	similarity to a model region occurs more than once [28234-28262 (len 29 >= 20) hits 2 (3031.0 bits) and 3 (54.7 bits) (model:28234..29896,28234..28262 seq:28256..29918,27818..27846)]
+6000265308_20210218_D4_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27751..27843 (stop shifted 34 nt)]
+6000265308_20210218_D4_950	sarscov2_annotation	CDS_HAS_FRAMESHIFT	low confidence potential frameshift in CDS [nucleotide alignment of positions 27825..27877 (53 nt, avgpp: 0.630) on + strand are inconsistent with dominant frame (+1); inserts:none; deletes:27824(5);]
+6000265308_20210218_D4_950	sarscov2_annotation	INDEFINITE_ANNOTATION_END	protein-based alignment does not extend close enough to nucleotide-based alignment 3' endpoint [94 > 36 (strand:+ CM:27877 blastx:27877 - 94)]
+6000265308_20210218_D4_950	sarscov2_annotation	UNEXPECTED_LENGTH	length of complete coding (CDS or mat_peptide) feature is not a multiple of 3 [127]
+6000265308_20210218_D4_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [372 nt overlap b/t low similarity region of length 409 (27847..28255) and annotated feature (27884..28281), strand: +]
+6000265308_20210218_D4_950	sarscov2_annotation	LOW_FEATURE_SIMILARITY	region within annotated feature lacks significant similarity [372 nt overlap b/t low similarity region of length 409 (27847..28255) and annotated feature (27884..28281), strand: +]
+6000265326_20210218_A3_950	sarscov2_annotation	CDS_HAS_STOP_CODON	in-frame stop codon exists 5' of stop position predicted by homology to reference [revised to 27200..27361 (stop shifted 24 nt)]
+6000265326_20210218_A3_950	sarscov2_annotation	CDS_HAS_STOP_CODON	stop codon in protein-based alignment [stop codon(s) end at position(s) 27361]
