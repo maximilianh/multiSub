@@ -90,7 +90,7 @@ subset, use the -f option and list the formats that you need:
 Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, date, isolate) to 
 the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
 
-    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa
+    wget https://raw.githubusercontent.com/maximilianh/muliSub/main/tests/ucsc1/mySeqs.fa
     wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv
 
     ./multiSub conv mySeqs.fa mySeqs.tsv mySub
@@ -161,7 +161,7 @@ Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account.
 Paste your new username and password into ~/.multiSub/config under enaUser and enaPass.
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start, create a study
-aka project and paste its identifier into ~/.multiSub.conf as enaProj. It starts with "PRJEB".
+aka project and paste its identifier into ~/.multiSub/config under enaProj (it starts with "PRJEB").
 
 Then, convert your submission files to the ENA XML format:
 
@@ -179,15 +179,15 @@ You can then find the raw receipt with your ENA accessions in mySub/enaReceiptSa
 and a parsed tsv table with the accessions and your internal identifiers in mySub/enaAcc.tsv
 
 The sequence upload is rather slow, every sequence takes a few seconds. Split the input
-files into chunks and run the script in parallel if you have several thousand sequences. 
-Contact us if you have trouble with this step.
+files into chunks and run the script in parallel if you have several thousand sequences
+Please contact me if this sentence is unclear or if have trouble with the upload.
 
 If your sequence or sample uploads fail somewhere within a batch and you change
 the meta data or sequences, note that some of them may have been uploaded
 already. To force a re-upload of everything, use the --prefix option. If the
 error happened on the production server, not in testing mode, it may be best to
 read the ENA API documentation on how to reset your upload (look at the receipt XML)
-or contact the ENA helpdesk or us. 
+or contact the ENA helpdesk or me. 
 
 ## Automated GISAID uploads
 
