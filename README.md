@@ -73,17 +73,20 @@ subset, use the -f option and list the formats that you need:
 - "ena" - for ENA automated sample uploads in XML format: ena.xml
 
 
-## Example: Convert files
+## Example: convert files
 
-Convert sequences from myseqs.fa with annotations (fields: seqId, date, isolate) in myseqs.tsv to 
-the directory mySub/ and create files for NCBI, ENA and GISAID at the same time:
+Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, date, isolate) to 
+the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
 
-    multiSub conv myseqs.fa myseqs.tsv mySub
+    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa
+    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv
+
+    ./multiSub conv mySeqs.fa mySeqs.tsv mySub
 
 Read all sequences and all annotation files (csv, tsv, xls) from mySeqs/ and write
 files for NCBI and GISAID into mySub/:
 
-    multiSub convDir mySeqs mySub -f ncbi,gisaid
+    ./multiSub convDir mySeqs mySub -f ncbi,gisaid
 
 ## Manual NCBI uploads
 
@@ -119,24 +122,24 @@ For more details see https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/submit/public-
 
 Convert your submission files into the NCBI FTP format:
 
-    multiSub conv mySeqs.fa mySeqs.tsv mySub -f ncbi-ftp
+    ./multiSub conv mySeqs.fa mySeqs.tsv mySub -f ncbi-ftp
 
 Upload sequences in mySub/ to the NCBI FTP server as a test submission:
 
-    multiSub up-ncbi mySub
+    ./multiSub up-ncbi mySub
     
 Wait for a few hours. Retrieve the status and accessions of your submission
 and write them to the file mySub/ncbiReport.xml
 
-    multiSub down-ncbi mySub
+    ./multiSub down-ncbi mySub
     
 Upload sequences in mySub/ to the NCBI FTP server as a real submission:
 
-    multiSub up-ncbi mySub --prod
+    ./multiSub up-ncbi mySub --prod
 
 Download the report:
 
-    multiSub down-ncbi mySub --prod
+    ./multiSub down-ncbi mySub --prod
 
 ## Automated ENA uploads
 
@@ -148,15 +151,15 @@ aka project and paste its identifier into ~/.multiSub.conf as enaProj. It starts
 
 Then, convert your submission files to the ENA XML format:
 
-    multiSub conv mySeqs.fa mySeqs.tsv mySub
+    ./multiSub conv mySeqs.fa mySeqs.tsv mySub
 
 Upload sequences in mySub/ to the ENA server as a test submission:
 
-    multiSub up-ena mySub
+    ./multiSub up-ena mySub
     
 If all is fine, upload sequences in mySub/ to the ENA production server as a real submission:
 
-    multiSub up-ena mySub --prod
+    ./multiSub up-ena mySub --prod
     
 You can then find the raw receipt with your ENA accessions in mySub/enaReceiptSample.DATE.xml
 and a parsed tsv table with the accessions and your internal identifiers in mySub/enaAcc.tsv
@@ -188,10 +191,10 @@ Run
 
 Convert your data:
 
-    multiSub conv seqs.fa seqs.tsv mySub
+    ./multiSub conv seqs.fa seqs.tsv mySub
 
 And upload it:
 
-    multiSub up-gisaid mySub
+    ./multiSub up-gisaid mySub
 
 GISAID upload error messages are written to mySub/gisaidFail.csv
