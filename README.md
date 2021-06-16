@@ -4,15 +4,15 @@ multiSub is a command-line tool to prepare and/or submit a SARS-CoV-2 genome
 sequence to the NCBI Genbank, EBI ENA and GISAID sequence repositories. It can also
 convert between these formats. This tool can be used by a "data
 broker", a single institution that collects sequences from labs and submits
-them to the sequence databases. It's early research software, you will probably 
+them to the sequence databases or it can be used by an individual lab. It's early research software, you will probably 
 find bugs, please open a ticket on Github or email maxh@ucsc.edu if that happens, most of them
 should be easy to fix now.
 
 ## Overview
 
-multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID xls format.
-It will make some effort to clean the input data, e.g. skip missing sequences
-or remove empty meta data and warn about it. It can then create one or multiple output files, 
+multiSub accepts input sequences in fasta format and meta data in tsv, csv or GISAID (xls or csv) formats.
+It will make some effort to clean the input data, e.g. skip missing sequences, strip flanking Ns,
+or remove empty meta data and output warnings if that happens. It can then create one or multiple output files, 
 in NCBI, NCBI-tag, NCBI-ftp, ENA-xml or GISAID-csv format and directly upload
 to NCBI, ENA or GISAID.
 
@@ -29,11 +29,22 @@ Without all of these people, this program would not have been possible.
 
 ## Installation and requirements
 
-The script has no dependencies in most cases. Just download it, make it executable and run it:
+The script has no dependencies in most cases. Just download it:
 
     wget https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+
+or:
+ 
+    curl -O https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+    
+Make it executable:
+
     chmod a+x multiSub
-    multiSub --help
+
+And run it:
+
+    ./multiSub --help
+
 
 This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
 you do not need to do anything else. If you want to read GISAID xls files, the
@@ -42,8 +53,9 @@ xlrd" or, if you are not administrator, with "pip install xlrd --user".  If you
 use Mac OSX and do not have pip installed yet, run the command "curl
 https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
-Using Microsoft Windows ? Please contact me at maxh@ucsc.edu. The script runs
-in the Windows WSL, but I can also provide a normal Windows .exe version, if that is helpful.
+Using Microsoft Windows ? Little command line experience? Please contact me at maxh@ucsc.edu. The script runs
+in the Windows WSL, but I can also provide a normal Windows .exe version, if that is helpful. I could make it 
+so that you only have to drag-and-drop a folder onto the program in Windows, if that is helpful.
 
 ## Input 
 
@@ -78,7 +90,7 @@ subset, use the -f option and list the formats that you need:
 Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, date, isolate) to 
 the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
 
-    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa
+    wget https://raw.githubusercontent.com/maximilianh/muliSub/main/tests/ucsc1/mySeqs.fa
     wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv
 
     ./multiSub conv mySeqs.fa mySeqs.tsv mySub
@@ -149,7 +161,7 @@ Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account.
 Paste your new username and password into ~/.multiSub/config under enaUser and enaPass.
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start, create a study
-aka project and paste its identifier into ~/.multiSub.conf as enaProj. It starts with "PRJEB".
+aka project and paste its identifier into ~/.multiSub/config under enaProj (it starts with "PRJEB").
 
 Then, convert your submission files to the ENA XML format:
 
@@ -167,15 +179,15 @@ You can then find the raw receipt with your ENA accessions in mySub/enaReceiptSa
 and a parsed tsv table with the accessions and your internal identifiers in mySub/enaAcc.tsv
 
 The sequence upload is rather slow, every sequence takes a few seconds. Split the input
-files into chunks and run the script in parallel if you have several thousand sequences. 
-Contact us if you have trouble with this step.
+files into chunks and run the script in parallel if you have several thousand sequences
+Please contact me if this sentence is unclear or if have trouble with the upload.
 
 If your sequence or sample uploads fail somewhere within a batch and you change
 the meta data or sequences, note that some of them may have been uploaded
 already. To force a re-upload of everything, use the --prefix option. If the
 error happened on the production server, not in testing mode, it may be best to
 read the ENA API documentation on how to reset your upload (look at the receipt XML)
-or contact the ENA helpdesk or us. 
+or contact the ENA helpdesk or me. 
 
 ## Automated GISAID uploads
 
