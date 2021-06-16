@@ -437,6 +437,10 @@ def parseTable(fname):
 
 def trimSeq(seqId, seq):
     """ remove initial and final Ns from seq, for Genbank
+    >>> trimSeq("test", "---ACTGNNN")
+    (6, 'ACTG')
+    >>> trimSeq("test", "nnnACTGNNN")
+    (6, 'ACTG')
     >>> trimSeq("test", "NNNACTGNNN")
     (6, 'ACTG')
     >>> trimSeq("test", "ACTGN")
@@ -444,6 +448,7 @@ def trimSeq(seqId, seq):
     >>> trimSeq("test", "NACTG")
     (1, 'ACTG')
     """
+    logging.debug("Trimming %s" % seqId)
     lowSeq = seq.lower()
     trimCount = 0
 
