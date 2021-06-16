@@ -497,6 +497,7 @@ def metaToGenbank(meta):
     # See https://submit.ncbi.nlm.nih.gov/sarscov2/genbank/
     # isolation-source is not required, so we don't make it
     # on country, see https://www.ncbi.nlm.nih.gov/genbank/collab/country/
+    # on the other fields, see https://submit.ncbi.nlm.nih.gov/biosample/template/?organism-organism_name=SARS-CoV-2&organism-taxonomy_id=&package-0=SARS-CoV-2.cl.1.0&action=definition
 
     cf = getConfig()
 
