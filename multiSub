@@ -982,6 +982,10 @@ def checkSeqsAndMeta(seqs, meta):
                 "in the meta annotation table" % repr(seqId))
             continue
 
+        if len(seq)==0:
+            logging.error("Sequence %s has no non-N nucleotides. Skipping it" % seqId)
+            continue
+
         newSeqs.append( (seqId, seq) )
         if seqId in seqIds:
             errAbort("Sequence ID '%s' in input fasta file appears twice. Please fix and rerun." % seqId)
