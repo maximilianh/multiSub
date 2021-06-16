@@ -450,6 +450,8 @@ def trimSeq(seqId, seq):
     """
     logging.debug("Trimming %s" % seqId)
     lowSeq = seq.lower()
+    lowSeq = lowSeq.replace("-", "n")
+
     trimCount = 0
 
     startPos = 0
