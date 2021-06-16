@@ -92,6 +92,8 @@ config = {
 
 # the first line of all GISAID csv files, from the GISAID docs
 GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
+# alternative format, also seen in the wild
+GISAIDHEADERS2 = GISAIDHEADERS+",covv_comment,comment_type"
 
 configDone = False
 
@@ -257,8 +259,8 @@ def parseFasta(fname):
 
 def readMetaGisaid(fname):
     """ read meta data in GISAID format and convert to our internal dictionary:
-    meta[isolate] -> dict with date -> date. Only imported fields are: 
-    collection_date, virus_name and location. They are converted to the 
+    meta[isolate] -> dict with date -> date. Only imported fields are:
+    collection_date, virus_name and location. They are converted to the
     fields: date, isolate and country. 'location' is passed through. """
 
     if fname.lower().endswith(".xls"):
@@ -288,11 +290,14 @@ def readMetaGisaid(fname):
         seqMeta["location"] = loc
 
         # example: "North America / USA / California / Santa Cruz"
+        # example: "North America / USA / Wisconsin"
         # has to be: USA: Santa Cruz, CA
         locParts = loc.split("/")
         locParts = [l.strip() for l in locParts]
         if len(locParts)==4:
             country = locParts[1]+": "+locParts[3]+", "+locParts[2]
+        elif len(locParts)==3:
+            country = locParts[1]+": "+locParts[2]
         else:
             country = locParts[1]
         seqMeta["country"] = country
@@ -350,8 +355,11 @@ def readMetaText(fname):
     """
     # GISAID files can also be in .csv format
     line1 = io.open(fname).readline().strip()
-    if line1==GISAIDHEADERS:
+    if line1.startswith("submitter,fn,covv_virus_name"):
+        logging.info("GISAID header line detected, using GISAID parser")
         return readMetaGisaid(fname)
+    else:
+        logging.debug("No GISAID header line detected, using normal meta data parser")
 
     headers, rows = parseTable(fname)
 
@@ -376,9 +384,6 @@ def readMetaText(fname):
             key = headers[colIdx]
             d[key] = row[colIdx]
         meta[seqId] = d
-
-    if headers == GISAIDHEADERS.split(","):
-        meta = metaFromGisaid(meta)
 
     return meta
 
@@ -784,9 +789,6 @@ def metaToNcbiFtp(meta):
             metaDict["sequence-id"] = seqId
         newMeta[seqId] = metaDict
     return newMeta
-
-def metaFromGisaid(meta):
-    " convert GISAID to NCBI meta format "
 
 def importIsolate(isolate, date):
     " convert various forms of isolate names to our internal format (NBCI) "
