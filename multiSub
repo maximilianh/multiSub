@@ -437,6 +437,15 @@ def parseTable(fname):
 
 def trimSeq(seqId, seq):
     """ remove initial and final Ns from seq, for Genbank
+    # Kyanoush wrote this in the RKI importer, this would be a lot easier:
+    #def clean_sequence(sequence):
+    #sequence = sequence.replace('-', 'N')
+    #if sequence[0] == 'N':
+    #    sequence = re.sub('^N*', '', sequence)
+    #if sequence[len(sequence) - 1] == 'N':
+    #    sequence = re.sub('N*$', '', sequence)
+    #return sequence
+
     >>> trimSeq("test", "---ACTGNNN")
     (6, 'ACTG')
     >>> trimSeq("test", "nnnACTGNNN")
@@ -447,19 +456,26 @@ def trimSeq(seqId, seq):
     (1, 'ACTG')
     >>> trimSeq("test", "NACTG")
     (1, 'ACTG')
+    >>> trimSeq("test", "NNN")
+    (3, '')
     """
     logging.debug("Trimming %s" % seqId)
     lowSeq = seq.lower()
-    lowSeq = lowSeq.replace("-", "n")
+    lowSeq = lowSeq.replace("-", "n") # is this a good idea ? do dashes appear in the input seqs?
 
     trimCount = 0
 
     startPos = 0
-    while lowSeq[startPos]=="n":
+    seqLen = len(lowSeq)
+    while startPos < seqLen and lowSeq[startPos]=="n":
         startPos+=1
         trimCount += 1
 
     endPos = len(seq)-1
+    # special case: sequence is all Ns - should this trigger an error?
+    if trimCount==endPos+1:
+        return trimCount, ""
+
     while lowSeq[endPos]=="n":
         endPos-=1
         trimCount += 1
