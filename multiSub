@@ -32,6 +32,24 @@ isPy2 = (sys.version_info.major == 2)
 # all possible values for the --format option
 allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena"]
 
+# when importing csv/tsv/xls files, use the following translation table to our internal annotation format
+# I use NCBI's source tag definition for now for the internal storage
+metaFieldMap = {
+    # common typos
+    "seqId"        : "Sequence_ID",
+    "SequenceId"   : "Sequence_ID",
+    "sequence_id " : "Sequence_ID",
+    "sequence-id " : "Sequence_ID",
+    "date"         : "collection_date", # we have code to reformat and check this field, see checkDate()
+    # for GISAID import
+    "covv_collection_date" : "collection_date", # +special code for checking the format, see checkDate()
+    "covv_virus_name"      : "isolate", # special code: fixupIsolate()
+    "covv_location"        : "country" # special code -> fixupGisaidCountry()
+}
+
+# these fields must be present after the metaFieldMap has been applied
+reqFields = ["isolate", "collection_date"]
+
 # mini config, these values are only there so the script can run without a config file
 # again this is done to keep the dependencies of the basic features to a single file
 config = {
@@ -95,6 +113,10 @@ GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_colle
 # alternative format, also seen in the wild
 GISAIDHEADERS2 = GISAIDHEADERS+",covv_comment,comment_type"
 
+# all possible NCBI source tags
+# see https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html#modifiers
+allSourceTags = set("isolate,strain,specimen_voucher,bio_material,biotype,cell_line,cell_type,dev_stage,ecotype,forma,fwd_primer_name,fwd_primer_seq,lat_lon,identified_by,lab_host,note,pop_variant,serogroup,segment,serotype,sex,speximen_voucher,sub_species,subtype,substrain,tissue_type,type,variety,collection_date,country,collected_by,isolation_source,organism,host,BioProject,BioSample,db_xref,note".split(","))
+
 configDone = False
 
 # URL to download the 'init' config file
@@ -110,6 +132,7 @@ def getConfig():
     " return config as dict "
     global config
     global configDone
+    global metaFieldMap
     if not configDone:
         cfgFname = getConfigFname("config")
         if isfile(cfgFname):
@@ -118,6 +141,9 @@ def getConfig():
             logging.info("%s does not exist. Using default values. "\
                 "Please run 'multiSub init' and then edit the config file to your needs" % cfgFname)
         configDone = True
+
+        if "metaFieldMap" in config:
+            metaFieldMap.update(config["metaFieldMap"])
     return config
 
 
@@ -257,52 +283,95 @@ def parseFasta(fname):
   else:
       yield (None, None)
 
+def fixupIsolate(metaDict):
+    " convert various forms of isolate names to our internal format (NBCI) "
+    # NCBI format is: SARS-CoV-2/human/CHN/Wuhan_X1/2019
+
+    # SPHERES format is: US/CA-CDPH-S001/2020
+    # see https://github.com/CDCgov/SARS-CoV-2_Sequencing#sequence-naming-conventions-for-public-repositories
+    # convert from GISAID to NCBI format here
+    if not "isolate" in metaDict:
+        return
+    isolate = metaDict["isolate"]
+
+    isoParts = isolate.split("/")
+    isoParts = [i.strip() for i in isoParts] # remove whitespace
+
+    if len(isoParts)==1:
+        # just the identifier, e.g. CA-UCSC-252
+        country = getConfig()["country"]
+        identifier = isoParts[0]
+        date = metaDict["collection_date"]
+        year = date.split("-")[0]
+    elif len(isoParts)==4 and isoParts[0].lower()=="hcov-19":
+        # GISAID format is: hCoV-19/USA/CA-UCSC-252/2021
+        virus, country, identifier, year = isolate.split("/")
+    elif len(isoParts)==5 and isoParts[0]=="SARS-CoV-2":
+        # NCBI format is: SARS-CoV-2/human/CHN/Wuhan_X1/2019
+        virus, host, country, identifier, year = isolate.split("/")
+    elif len(isoParts)==3 and isoParts[0]=="US":
+        # SPHERES format is: US/CA-CDPH-S001/2020
+        country, identifier, year = gisaidIsolate.split("/")
+    else:
+        errAbort("Isolate format '%s' contains slashes but is not NCBI, GISAID or SPHERES format. "
+            "Extend fixupIsolate() in %s" % (isolate, __file__))
+
+    virus = "SARS-CoV-2"
+    newIso = "/".join((virus, "human", country, identifier, year))
+
+    metaDict["isolate"] = newIso
+
+def fixupGisaidCountry(metaDict):
+    " fix up the 'country' attribute "
+    # example input: "North America / USA / California / Santa Cruz"
+    # example input: "North America / USA / Wisconsin"
+    # has to be: USA: Santa Cruz, CA
+    loc = metaDict["country"]
+    locParts = loc.split("/")
+    locParts = [l.strip() for l in locParts]
+    if len(locParts)==4:
+        country = locParts[1]+": "+locParts[3]+", "+locParts[2]
+    elif len(locParts)==3:
+        country = locParts[1]+": "+locParts[2]
+    else:
+        country = locParts[1]
+    metaDict["country"] = country
+
 def readMetaGisaid(fname):
     """ read meta data in GISAID format and convert to our internal dictionary:
     meta[isolate] -> dict with date -> date. Only imported fields are:
-    collection_date, virus_name and location. They are converted to the
-    fields: date, isolate and country. 'location' is passed through. """
+    covv_collection_date, covv_virus_name and covv_location. They are converted to the
+    fields: collection_date, isolate and country. 'location' is rewritten to
+    comply with NCBI rules. """
 
     if fname.lower().endswith(".xls"):
         headers, rows = parseTableXls(fname)
     else:
         headers, rows = parseTable(fname)
 
-    dateIdx = headers.index("covv_collection_date")
-    isolateIdx = headers.index("covv_virus_name")
-    locIdx = headers.index("covv_location")
-
-    meta = dict()
+    meta = OrderedDict()
     for row in rows:
-        date = row[dateIdx]
-        checkDate(date)
-
-        gisaidIsolate = row[isolateIdx]
-        isolate = importIsolate(gisaidIsolate, date)
-
-        # the seqId now is the gisaid-isolate name now
         seqMeta = OrderedDict()
+        assert(len(headers)==len(row))
+        seqId = None
+        for field, val in zip(headers, row):
+            # translate the field name:
+            # this is very different than the default readMetaText() function,
+            # because for GISAID, only the explicitly named fields from metaFieldMap are imported
+            if field in metaFieldMap:
+                newName = metaFieldMap[field]
+                seqMeta[newName] = val
+                if field=="covv_virus_name":
+                    seqId = val
 
-        seqMeta["isolate"] = isolate
-        seqMeta["date"] = date
+        # and run the fixup code
+        fixupIsolate(seqMeta)
+        fixupGisaidCountry(seqMeta)
 
-        loc = row[locIdx]
-        seqMeta["location"] = loc
+        assert(seqId is not None)
+        seqMeta["Sequence_ID"] = seqId
 
-        # example: "North America / USA / California / Santa Cruz"
-        # example: "North America / USA / Wisconsin"
-        # has to be: USA: Santa Cruz, CA
-        locParts = loc.split("/")
-        locParts = [l.strip() for l in locParts]
-        if len(locParts)==4:
-            country = locParts[1]+": "+locParts[3]+", "+locParts[2]
-        elif len(locParts)==3:
-            country = locParts[1]+": "+locParts[2]
-        else:
-            country = locParts[1]
-        seqMeta["country"] = country
-
-        meta[gisaidIsolate] = seqMeta
+        meta[seqId] = seqMeta
 
     return meta
 
@@ -331,10 +400,10 @@ def checkMeta(meta):
         if not "isolate" in m.keys():
             errAbort("Meta data row for '%s' does not contain an 'isolate' field" % seqId)
 
-        if not "collection-date" in m:
-            errAbort("Meta data row for '%s' does not contain a date field" % seqId)
+        if not "collection_date" in m:
+            errAbort("Meta data row for '%s' does not contain a 'collection_date' nor a 'date' field" % seqId)
         else:
-            checkDate(m["collection-date"])
+            checkDate(m["collection_date"])
 
 def readMeta(fname):
     """ read meta data in format csv, tsv or xls. return as dict with 'seqId'
@@ -350,7 +419,7 @@ def readMeta(fname):
 
 def readMetaText(fname):
     """ read csv/tsv table with sequence meta data and return as dict with 'seqId' -> OrderedDict of 'key':'value'
-    Current field names are: "date" and "isolate".
+    Current field names are: "collection_date" and "isolate".
     Standardize field names to: date and isolate.
     """
     # GISAID files can also be in .csv format
@@ -371,19 +440,13 @@ def readMetaText(fname):
             errAbort("Line %d: number of fields is not identical to number of header fields. "
                 "Headers are: %s, fields are %s" % (lNo, repr(row), repr(headers)))
 
-        seqId = row[0]
-
         d = OrderedDict()
+        for colIdx in range(0, len(headers)):
+            d[headers[colIdx]] = row[colIdx]
 
-        # if the first field is "isolate", add it here again:
-        # The genbank files that we create use 'isolate' as the first field
-        if not "isolate" in d and headers[0]=="isolate":
-            d["isolate"] = seqId
-
-        for colIdx in range(1, len(headers)):
-            key = headers[colIdx]
-            d[key] = row[colIdx]
+        seqId = row[0]
         meta[seqId] = d
+
 
     return meta
 
@@ -406,13 +469,15 @@ def parseTableXls(fname):
 
 def parseTable(fname):
     " read csv or tsv, return (list headers, list of row-tuples) "
-    logging.info("Parsing tsv or csv file '%s'" % fname)
-
-    sep = "\t"
-    if ".csv" in fname:
-        sep = ","
-    if ".tsv" in fname:
+    line1 = openFile(fname).readline()
+    if "\t" in line1:
         sep = "\t"
+        ftype = "tsv"
+    else:
+        sep = ","
+        ftype = "csv"
+
+    logging.info("Parsing file '%s', detected filetype %s" % (fname, ftype))
 
     headers = None
     rows = []
@@ -426,6 +491,11 @@ def parseTable(fname):
         for row in reader:
             if isPy2:
                 row = [x.decode("utf8") for x in row]
+
+            if len(row)==1:
+                errAbort("file %s looks like it should use separator %s, but not more "
+                    "than one field found. Is this a tsv file with a csv file extension "
+                    "or the opposite? " % (fname, repr(sep)))
 
             if headers is None:
                 headers = row
@@ -503,22 +573,34 @@ def writeFasta(seqs, ofh):
 
 def writeMetaTsv(meta, ofh):
     " write meta information to a tsv file. Assume that all meta keys are identical. "
-    seqId0 = list(meta.keys())[0]
-    headers = meta[seqId0].keys()
-    ofh.write(u"\t".join(headers))
+    # get a list of all headers, in all meta dictionaries
+    allHeaderSet = set()
+    allHeaders = []
+    for seqId, metaDict in meta.iteritems():
+        keys = metaDict.keys()
+        missing = set(keys) - allHeaderSet
+        if len(missing)!=0:
+            for k in keys:
+                if k not in allHeaders:
+                    allHeaders.append(k)
+            allHeaderSet.update(missing)
+
+    ofh.write(u"\t".join(allHeaders))
     ofh.write(u"\n")
 
     for seqId, metaDict in meta.items():
-        assert(headers==metaDict.keys())
-        vals = metaDict.values()
+        #assert(headers==metaDict.keys())
+        vals = []
+        for h in allHeaders:
+            vals.append(metaDict.get(h, ""))
         ofh.write(u"\t".join(vals))
         ofh.write(u"\n")
 
-def metaToGenbank(meta):
+def metaTransform(meta):
     """ convert meta data to a standard format, return as 'seqId' -> dict of 'key:'value'.
-    Changes only the 'key' strings and the isolate value.  """
+    """
     # See https://submit.ncbi.nlm.nih.gov/sarscov2/genbank/
-    # isolation-source is not required, so we don't make it
+    # isolation-source is not required, so we don't create it
     # on country, see https://www.ncbi.nlm.nih.gov/genbank/collab/country/
     # on the other fields, see https://submit.ncbi.nlm.nih.gov/biosample/template/?organism-organism_name=SARS-CoV-2&organism-taxonomy_id=&package-0=SARS-CoV-2.cl.1.0&action=definition
 
@@ -526,33 +608,23 @@ def metaToGenbank(meta):
 
     newMeta = dict()
     for seqId, seqMeta in meta.items():
-        if " " in seqId:
-            logging.error("Sequence identifier %ss: seqId cannot contain spaces - "
-                "skipping this sequence" % repr(seqId))
-            continue
-
-        if "[" in seqId or "]" in seqId:
-            logging.error("Sequence identifier %s: seqIdcannot contain brackets - "
-                "skipping this sequence" % repr(seqId))
-            continue
-
         ns = OrderedDict()
+        for key, val in seqMeta.items():
+            if key in metaFieldMap:
+                key = metaFieldMap.get(key, key)
+            ns[key] = val.strip()
 
-        date = seqMeta["date"]
+        # if there is no isolate field, use the sequence ID
+        if "isolate" not in ns:
+            ns["isolate"] = seqId
 
-        isolate = seqMeta["isolate"]
-        isolate = importIsolate(isolate, date)
+        # check that the required fields are there - cannot be made in checkBoth(), as the fixers
+        # need them
+        for field in reqFields:
+            if field not in ns or ns[field]=="":
+                errAbort("meta data, row '%s': Field %s does not exist or is empty" % (seqId, field))
 
-        ns["sequence-id"] = seqId
-        ns["isolate"] = isolate
-        ns["collection-date"] = date
-
-        if "country" not in seqMeta:
-            ns["country"] = cf["ncbiCountry"]
-        else:
-            ns["country"] = seqMeta["country"]
-
-        ns["host"] = cf["ncbi-host"]
+        fixupIsolate(ns)
 
         newMeta[seqId] = ns
 
@@ -583,7 +655,7 @@ def makeGenbankTagSeqs(seqs, meta):
 
         tagsStrs = []
         for key, val in seqMeta.items():
-            if key in ["sequence-id", "location"]:
+            if key == "Sequence_ID":
                 continue
             tagsStrs.append("["+key+"="+val+"]")
 
@@ -606,7 +678,7 @@ def writeGenbankTagFa(seqs, meta, gbOutFname):
     with io.open(gbOutFname, "wt") as ofh:
         writeFasta(gbSeqs, ofh)
 
-def filterAll(skipFile, seqs, meta):
+def filterBoth(skipFile, seqs, meta):
     " parse first column from skipFile and remove these seqs and their annotations "
     headers, rows = parseTable(skipFile)
     skipIds = set()
@@ -804,47 +876,45 @@ def makeNcbiSubXml():
     return xml
 
 def metaToNcbiFtp(meta):
-    " add a few fields that are required for NCBI's ftp upload "
-    newMeta = OrderedDict()
+    """ add a few fields that are required for NCBI's ftp upload: organism, country, host
+    Then split the meta data into source tags and comments and return as a pair
+    (meta, comments) """
+    tags = OrderedDict()
+    comments = OrderedDict()
+
+    commCount = 0
+
+    cf = getConfig()
+
     for seqId, metaDict in meta.items():
-        if not "organism" in metaDict:
-            metaDict["organism"] = "Severe acute respiratory syndrome coronavirus 2"
-        if not "sequence-id" in metaDict:
-            metaDict["sequence-id"] = seqId
-        newMeta[seqId] = metaDict
-    return newMeta
+        tagDict = OrderedDict()
+        commentDict = OrderedDict()
 
-def importIsolate(isolate, date):
-    " convert various forms of isolate names to our internal format (NBCI) "
-    # NCBI format is: SARS-CoV-2/human/CHN/Wuhan_X1/2019
+        tagDict["Sequence_ID"] = seqId # must be first
+        commentDict["Sequence_ID"] = seqId
 
-    # SPHERES format is: US/CA-CDPH-S001/2020
-    # see https://github.com/CDCgov/SARS-CoV-2_Sequencing#sequence-naming-conventions-for-public-repositories
-    # convert from GISAID to NCBI format here
-    isoParts = isolate.split("/")
-    isoParts = [i.strip() for i in isoParts] # remove whitespace
+        for key, val in metaDict.items():
+            if key in allSourceTags:
+                tagDict[key] = val
+            else:
+                commentDict[key] = val
+                commCount += 1
 
-    if len(isoParts)==1:
-        # just the identifier, e.g. CA-UCSC-252
-        country = getConfig()["country"]
-        identifier = isoParts[0]
-        year = date.split("-")[0]
-    elif len(isoParts)==4 and isoParts[0].lower()=="hcov-19":
-        # GISAID format is: hCoV-19/USA/CA-UCSC-252/2021
-        virus, country, identifier, year = isolate.split("/")
-    elif len(isoParts)==5 and isoParts[0]=="SARS-CoV-2":
-        # NCBI format is: SARS-CoV-2/human/CHN/Wuhan_X1/2019
-        virus, host, country, identifier, year = isolate.split("/")
-    elif len(isoParts)==3 and isoParts[0]=="US":
-        # SPHERES format is: US/CA-CDPH-S001/2020
-        country, identifier, year = gisaidIsolate.split("/")
-    else:
-        errAbort("Isolate format '%s' contains slashes but is not NCBI, GISAID or SPHERES format. "
-            "Extend importIsolate() in %s" % (isolate, __file__))
+        # if tags contain no country, use the one from the config file
+        if "country" not in tagDict:
+            tagDict["country"] = cf["ncbiCountry"]
+        # if tags contains no host or organism (pretty common), use the one from the config file
+        if "host" not in tagDict:
+            tagDict["host"] = cf["ncbi-host"]
+        if not "organism" in tagDict:
+            tagDict["organism"] = "Severe acute respiratory syndrome coronavirus 2"
 
-    virus = "SARS-CoV-2"
-    newIso = "/".join((virus, "human", country, identifier, year))
-    return newIso
+        tags[seqId] = tagDict
+        comments[seqId] = commentDict
+
+    if commCount == 0:
+        comments = None
+    return tags, comments
 
 def isoToGisaid(isolate):
     " reformat NCBI isolate string to GISAID format "
@@ -853,10 +923,9 @@ def isoToGisaid(isolate):
     # GISAID format is: hCoV-19/USA/CA-UCSC-252/2021
     return "/".join(["hCoV-19", country, identifier, year])
 
-def writeGenbankFtpZip(seqs, meta, zipFname, xmlFname):
+def writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname):
     " create fasta/src and xml file for genbank ftp upload "
     # documentation and sample files are here: https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/submit/public-docs/genbank/SARS-CoV-2/
-    meta = metaToNcbiFtp(meta)
 
     with zipfile.ZipFile(zipFname, "w") as zfh:
         # writing as a string avoids any py2/3 unicode trouble
@@ -865,8 +934,13 @@ def writeGenbankFtpZip(seqs, meta, zipFname, xmlFname):
             zfh.writestr("seqs.fsa", memFh.getvalue())
 
         with StringIO() as memFh:
-            writeMetaTsv(meta, memFh)
+            writeMetaTsv(sourceTags, memFh)
             zfh.writestr("seqs.src", memFh.getvalue())
+
+        if comments is not None:
+            with StringIO() as memFh:
+                writeMetaTsv(comments, memFh)
+                zfh.writestr("comments.cmt", memFh.getvalue())
 
         zfh.writestr("seqs.sbt", makeTemplate())
 
@@ -916,7 +990,7 @@ def writeGisaid(seqs, meta, seqFn, metaFn):
 
         vType = "betacoronavirus"
         passage = "Original"
-        date = metaDict["collection-date"]
+        date = metaDict["collection_date"]
         if "location" in metaDict:
             location = metaDict["location"]
         else:
@@ -968,11 +1042,12 @@ def writeGisaid(seqs, meta, seqFn, metaFn):
     metaFh.close()
     logging.info("Wrote GISAID csv to %s" % metaFh.name)
 
-def checkSeqsAndMeta(seqs, meta):
+def checkBoth(seqs, meta):
     """Check for duplicate seq IDs, invalid dates and missing tags.
     Skips seqs without meta and meta without a seq """
     checkMeta(meta)
 
+    # go over seqs and throw out invalid ones
     newSeqs = []
     seqIds = set()
     for seqId, seq in seqs:
@@ -984,6 +1059,20 @@ def checkSeqsAndMeta(seqs, meta):
 
         if len(seq)==0:
             logging.error("Sequence %s has no non-N nucleotides. Skipping it" % seqId)
+            continue
+
+        if "-" in seq:
+            logging.warn("Sequence %s contains at least one dash character. Is this intentional?" % seqId)
+            #continue
+
+        if " " in seqId:
+            logging.error("Sequence identifier %ss: seqId cannot contain spaces - "
+                "skipping this sequence" % repr(seqId))
+            continue
+
+        if "[" in seqId or "]" in seqId:
+            logging.error("Sequence identifier %s: seqIdcannot contain brackets - "
+                "skipping this sequence" % repr(seqId))
             continue
 
         newSeqs.append( (seqId, seq) )
@@ -1158,7 +1247,7 @@ def writeEnaXml(meta, ofh, prefix):
             u"collecting institution" : collInst,
             u"geographic location (country and/or sea)" : country,
             u"geographic location (region and locality)" : region,
-            u"collection date" : seqMeta["collection-date"],
+            u"collection date" : seqMeta["collection_date"],
             u"host common name" : host,
             u"sample capture status" : u"active surveillance in response to outbreak",
             u"host scientific name" : u"Homo sapiens",
@@ -1276,11 +1365,12 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
 
     logging.info("Read %d sequences and %d annotation rows" % (len(seqs), len(meta)))
 
-    meta = metaToGenbank(meta)
-    seqs, meta = checkSeqsAndMeta(seqs, meta)
+    meta = metaTransform(meta)
+
+    seqs, meta = checkBoth(seqs, meta)
 
     if skipFile:
-        seqs, meta, skipSeqs, skipMeta = filterAll(skipFile, seqs, meta)
+        seqs, meta, skipSeqs, skipMeta = filterBoth(skipFile, seqs, meta)
 
     if not isdir(outDir):
         os.mkdir(outDir)
@@ -1293,19 +1383,20 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
     metaFn = join(outDir, "meta.tsv")
     writeMetaTsv(meta, io.open(metaFn, "wt"))
 
-    if "ncbi" in outFmts:
+    if "ncbi" in outFmts or "ncbi-ftp" in outFmts:
         # combined genbank seq + source tags file
-        gbOutFn = join(outDir, "ncbiSeqAndSource.fa")
-        writeGenbankTagFa(seqs, meta, gbOutFn)
+        sourceTags, comments = metaToNcbiFtp(meta)
+        if "ncbi" in outFmts:
+            gbOutFn = join(outDir, "ncbiSeqAndSource.fa")
+            writeGenbankTagFa(seqs, sourceTags, gbOutFn)
+        if "ncbi-ftp" in outFmts:
+            zipFname = join(outDir, "ncbiFtp.zip")
+            xmlFname = join(outDir, "submission.xml")
+            writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname)
 
         #if len(skipSeqs)!=0:
             #gbSkipFn = outBase+"genbank.skip.fa"
             #writeGenbankTagFa(skipSeqs, skipMeta, gbSkipFn)
-
-    if "ncbi-ftp" in outFmts:
-        zipFname = join(outDir, "ncbiFtp.zip")
-        xmlFname = join(outDir, "submission.xml")
-        writeGenbankFtpZip(seqs, meta, zipFname, xmlFname)
 
     if "gisaid" in outFmts:
         gisaidSeqFn = join(outDir, "gisaid.fa")

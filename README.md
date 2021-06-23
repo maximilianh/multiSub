@@ -29,13 +29,13 @@ Without all of these people, this program would not have been possible.
 
 ## Installation and requirements
 
-The script has no dependencies in most cases. Just download it:
+The script has usually no software requirements (see below). Just download it:
 
-    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+    wget https://raw.githubusercontent.com/maximilianh/multiSub/stable/multiSub
 
 or:
  
-    curl -O https://raw.githubusercontent.com/maximilianh/multiSub/main/multiSub
+    curl -O https://raw.githubusercontent.com/maximilianh/multiSub/stable/multiSub
     
 Make it executable:
 
@@ -45,17 +45,18 @@ And run it:
 
     ./multiSub --help
 
-
 This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
-you do not need to do anything else. If you want to read GISAID xls files, the
-script needs the xlrd Python package. You can install it with "pip install
+you do not need to install anything else. If you want to read GISAID xls files, the
+script needs the xlrd Python package. You can install xlrd with "pip install
 xlrd" or, if you are not administrator, with "pip install xlrd --user".  If you
 use Mac OSX and do not have pip installed yet, run the command "curl
 https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
-Using Microsoft Windows ? Little command line experience? Please contact me at maxh@ucsc.edu. The script runs
-in the Windows WSL, but I can also provide a normal Windows .exe version, if that is helpful. I could make it 
-so that you only have to drag-and-drop a folder onto the program in Windows, if that is helpful.
+Using Microsoft Windows ? Little command line experience? Please contact me at
+maxh@ucsc.edu. The script runs in the Windows WSL, but I can also provide a
+normal Windows .exe version, if that is helpful. I could make it so that you
+only have to drag-and-drop a folder onto the program in Windows, if that is
+helpful.
 
 ## Input 
 
@@ -87,6 +88,12 @@ subset, use the -f option and list the formats that you need:
 
 ## Example: convert files
 
+The absolutely minimal example:
+
+    printf '>CA-UCSC-123\nNNNNACTGT' > seq.fa
+    printf 'isolate,date\nCA-UCSC-123,2021-03-03' > meta.csv
+    ./multiSub conv seq.fa meta.csv mini/
+
 Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, date, isolate) to 
 the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
 
@@ -101,6 +108,14 @@ Read all sequences and all annotation files (csv, tsv, xls) from mySeqs/ and wri
 files for NCBI and GISAID into mySub/:
 
     ./multiSub convDir mySeqs mySub -f ncbi,gisaid
+
+## Unusual cases
+
+Mixing different file types: with the convDir command, you can merge datasets in different formats,
+e.g. you can mix GISAID and NCBI data or mix different table formats. Fields
+that exist in one input file, but not in the others, will be set to the empty
+string.
+
 
 ## Manual NCBI uploads
 
