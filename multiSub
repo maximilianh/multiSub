@@ -576,7 +576,7 @@ def writeMetaTsv(meta, ofh):
     # get a list of all headers, in all meta dictionaries
     allHeaderSet = set()
     allHeaders = []
-    for seqId, metaDict in meta.iteritems():
+    for seqId, metaDict in meta.items():
         keys = metaDict.keys()
         missing = set(keys) - allHeaderSet
         if len(missing)!=0:
