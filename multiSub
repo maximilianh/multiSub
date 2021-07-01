@@ -355,26 +355,29 @@ def readMetaGisaid(fname):
         headers, rows = parseTable(fname)
 
     meta = OrderedDict()
+    seqIdIdx = headers.index("covv_virus_name")
+
     for row in rows:
-        seqMeta = OrderedDict()
         assert(len(headers)==len(row))
-        seqId = None
+
+        seqId = row[seqIdIdx]
+        seqMeta = OrderedDict()
+        seqMeta["Sequence_ID"] = seqId
+        seqMeta["isolate"] = seqId
+
         for field, val in zip(headers, row):
             # translate the field name:
             # this is very different than the default readMetaText() function,
             # because for GISAID, only the explicitly named fields from metaFieldMap are imported
             if field in metaFieldMap:
+                if field=="covv_virus_name":
+                    continue
                 newName = metaFieldMap[field]
                 seqMeta[newName] = val
-                if field=="covv_virus_name":
-                    seqId = val
 
         # and run the fixup code
         fixupIsolate(seqMeta)
         fixupGisaidCountry(seqMeta)
-
-        assert(seqId is not None)
-        seqMeta["Sequence_ID"] = seqId
 
         meta[seqId] = seqMeta
 
@@ -854,14 +857,8 @@ def now():
     s = datetime.isoformat(datetime.now(), sep="_").split(".")[0].replace(":", "")
     return s
 
-def makeNcbiSubXml():
-    " generate a ncbi submission.xml file "
-    # I am not using release dates:
-    # <Hold release_date="2024-05-25"/>
-    c = getConfig()
-    ncbiUser = c["ncbiUser"]
-    uniqueId = now()
-
+def makeSubXmlDesc(ncbiUser):
+    " return the NCBI submission.xmls desc header "
     xml = u"""<?xml version="1.0"?>
 <Submission>
   <Description>
@@ -871,6 +868,18 @@ def makeNcbiSubXml():
       <Name>%(ncbiUser)s</Name>
     </Organization>
   </Description>
+  """ % locals()
+    return xml
+
+def makeGenbankSubXml():
+    " generate a ncbi submission.xml file "
+    # I am not using release dates:
+    # <Hold release_date="2024-05-25"/>
+    c = getConfig()
+    ncbiUser = c["ncbiUser"]
+    uniqueId = now()
+
+    xml = makeSubXmlDesc(ncbiUser) + """
   <Action>
     <AddFiles target_db="GenBank">
       <File file_path="ncbiFtp.zip">
@@ -957,7 +966,7 @@ def writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname):
     # documentation and sample files are here: https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/submit/public-docs/genbank/SARS-CoV-2/
 
     with zipfile.ZipFile(zipFname, "w") as zfh:
-        # writing as a string avoids any py2/3 unicode trouble
+        # writing from stringio avoids any py2/3 unicode trouble
         with StringIO() as memFh:
             writeFasta(seqs, memFh)
             zfh.writestr("seqs.fsa", memFh.getvalue())
@@ -976,9 +985,8 @@ def writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname):
 
     logging.info("Wrote zipfile %s" % zipFname)
 
-    #xmlFname = join(outDir, "submission.xml")
     with io.open(xmlFname, "wt") as ofh:
-        ofh.write( makeNcbiSubXml() )
+        ofh.write( makeGenbankSubXml() )
     logging.info("Wrote genbank XML %s" % xmlFname)
 
 def getFormats(formatStr):
@@ -1169,9 +1177,10 @@ def upNcbi(zipFname, xmlFname, batchFn, isProd):
 
     ftp.quit()
 
-    ofh = io.open(batchFn, "w")
+    ofh = open(batchFn, "wt") # not unicode, because subdir is a byte string on py2
     ofh.write(subDir)
     ofh.close()
+
     logging.info("Wrote NCBI FTP directory name (=batch name) to %s" % batchFn)
     logging.info("Wait for some time, then use the 'down-ncbi' command to retrieve the status of this batch")
 
@@ -1196,6 +1205,7 @@ def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
         isolate = seqMeta["isolate"]
         alias = makeEnaAlias(prefix, seqMeta)
 
+        # see https://wwwdev.ebi.ac.uk/ena/submit/webin-cli/swagger-ui/index.html?configUrl=/ena/submit/webin-cli/v3/api-docs/swagger-config
         data = {
             'name': alias,
             'study': cf["enaProj"],
@@ -1332,6 +1342,11 @@ def upEna(sampleFname, seqFname, metaFname, seqLog, sampleLogFn, accLogFn, prefi
 
 def downNcbi(ncbiBatchFn, isProd, outFname):
     " download NCBI status file "
+    seqsFname = join(dirname(ncbiBatchFn), "seqs.fa")
+    if not isfile(seqsFname):
+        errAbort("%s does not exist. Sure that %s contains the output of a 'conv' or 'convDir' run?" \
+            % (seqsFname, dirname(seqsFname)))
+
     if not isfile(ncbiBatchFn):
         errAbort("%s does not exist. You need to run up-ncbi succesfully once before "
             "you can run down-ncbi." % ncbiBatchFn)
@@ -1423,10 +1438,6 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
             zipFname = join(outDir, "ncbiFtp.zip")
             xmlFname = join(outDir, "submission.xml")
             writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname)
-
-        #if len(skipSeqs)!=0:
-            #gbSkipFn = outBase+"genbank.skip.fa"
-            #writeGenbankTagFa(skipSeqs, skipMeta, gbSkipFn)
 
     if "gisaid" in outFmts:
         gisaidSeqFn = join(outDir, "gisaid.fa")
