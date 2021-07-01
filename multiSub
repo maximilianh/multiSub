@@ -44,7 +44,10 @@ metaFieldMap = {
     # for GISAID import
     "covv_collection_date" : "collection_date", # +special code for checking the format, see checkDate()
     "covv_virus_name"      : "isolate", # special code: fixupIsolate()
-    "covv_location"        : "country" # special code -> fixupGisaidCountry()
+    "covv_location"        : "country", # special code -> fixupGisaidCountry()
+    "covv_assembly_method" : "Assembly Method",
+    "covv_coverage"        : "Genome Coverage",
+    "covv_seq_technology"  : "Sequencing Technology"
 }
 
 # these fields must be present after the metaFieldMap has been applied
@@ -116,6 +119,8 @@ GISAIDHEADERS2 = GISAIDHEADERS+",covv_comment,comment_type"
 # all possible NCBI source tags
 # see https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html#modifiers
 allSourceTags = set("isolate,strain,specimen_voucher,bio_material,biotype,cell_line,cell_type,dev_stage,ecotype,forma,fwd_primer_name,fwd_primer_seq,lat_lon,identified_by,lab_host,note,pop_variant,serogroup,segment,serotype,sex,speximen_voucher,sub_species,subtype,substrain,tissue_type,type,variety,collection_date,country,collected_by,isolation_source,organism,host,BioProject,BioSample,db_xref,note".split(","))
+# all possible NCBI structured comments tags
+commentTags = set(["Assembly Name", "Assembly Method", "Genome Coverage", "Sequencing Technology"])
 
 configDone = False
 
@@ -404,6 +409,13 @@ def checkMeta(meta):
             errAbort("Meta data row for '%s' does not contain a 'collection_date' nor a 'date' field" % seqId)
         else:
             checkDate(m["collection_date"])
+
+def checkAssembler(seqId, assembler):
+    " more weird NCBI requirements... "
+    if not "v." in assembler:
+        errAbort("The 'Assembly' value for %s is %s (possibly specified as ncbiAssembly in the config file). "
+                "But NCBI requires that the string 'v.' must be between the assembler name and its version. " %
+                (seqId, assembler))
 
 def readMeta(fname):
     """ read meta data in format csv, tsv or xls. return as dict with 'seqId'
@@ -891,14 +903,26 @@ def metaToNcbiFtp(meta):
         commentDict = OrderedDict()
 
         tagDict["Sequence_ID"] = seqId # must be first
-        commentDict["Sequence_ID"] = seqId
+
+        commentDict["SeqID"] = seqId # must be first
+        commentDict["StructuredCommentPrefix"] = "Assembly-Data"
 
         for key, val in metaDict.items():
             if key in allSourceTags:
                 tagDict[key] = val
-            else:
+            elif key in commentTags:
                 commentDict[key] = val
                 commCount += 1
+            else:
+                pass
+
+        if (not "Assembly Method" in commentDict or commentDict["Assembly Method"].strip()=="") and "ncbiAsmMethod" in cf:
+            asm = cf["ncbiAsmMethod"]
+            #checkAssembler(seqId, asm)
+            commentDict["Assembly Method"] = asm
+            commCount += 1
+
+        commentDict["StructuredCommentSuffix"] = "Assembly-Data"
 
         # if tags contain no country, use the one from the config file
         if "country" not in tagDict:
@@ -910,7 +934,12 @@ def metaToNcbiFtp(meta):
             tagDict["organism"] = "Severe acute respiratory syndrome coronavirus 2"
 
         tags[seqId] = tagDict
-        comments[seqId] = commentDict
+
+        if len(commentDict.keys())!=2:
+            logging.debug("Adding comments")
+            comments[seqId] = commentDict
+        else:
+            logging.debug("No comments")
 
     if commCount == 0:
         comments = None
@@ -940,7 +969,8 @@ def writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname):
         if comments is not None:
             with StringIO() as memFh:
                 writeMetaTsv(comments, memFh)
-                zfh.writestr("comments.cmt", memFh.getvalue())
+                logging.debug("Wrote into zip:comment.cmt")
+                zfh.writestr("comment.cmt", memFh.getvalue())
 
         zfh.writestr("seqs.sbt", makeTemplate())
 
@@ -1435,6 +1465,9 @@ def main():
 
     elif cmd=="conv" or cmd=="convert":
         faFname, metaFname, outDir = args[1:]
+        if faFname.endswith(".xls") or faFname.endswith(".csv") or faFname.endswith(".tsv"):
+            errAbort("The order of the arguments is: fasta file first, meta file next. You seem to have "
+                    "provided them in the opposite order")
         convFiles([faFname], [metaFname], outDir, outFmts, options.skipFile, options.prefix)
 
     elif cmd=="convDir":
@@ -1475,5 +1508,8 @@ def main():
         gisaidMetaFn = join(outDir, "gisaid.csv")
         gisaidReportFn = join(outDir, "gisaidReport.txt")
         upGisaid(gisaidSeqFn, gisaidMetaFn, gisaidReportFn)
+
+    else:
+        errAbort("Unknown command: %s. Must be one of conv, convDir, up-ena, up-gisaid, up-ncbi, down-ncbi" % cmd)
 
 main()
