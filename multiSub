@@ -373,7 +373,8 @@ def readMetaGisaid(fname):
                 if field=="covv_virus_name":
                     continue
                 newName = metaFieldMap[field]
-                seqMeta[newName] = val
+                if val.strip()!="":
+                    seqMeta[newName] = val
 
         # and run the fixup code
         fixupIsolate(seqMeta)
@@ -457,7 +458,10 @@ def readMetaText(fname):
 
         d = OrderedDict()
         for colIdx in range(0, len(headers)):
-            d[headers[colIdx]] = row[colIdx]
+            val = row[colIdx]
+            key = headers[colIdx]
+            if val.strip()!="":
+                d[key] = val
 
         seqId = row[0]
         meta[seqId] = d
