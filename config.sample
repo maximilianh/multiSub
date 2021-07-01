@@ -1,13 +1,15 @@
 # general info, used for GISAID / ENA files
 # format: (lastname, firstname, middle initial)
 contact = ("Doe", "John", "M")
-email = "johndoe@gmail.com"
+email = "johndoe@someuni.com"
 phone = "8311230333"
 # three letter code of country, used when generating ICTV isolate names, e.g. FRA
 country = "USA" 
 # full name of country, used for NCBI export, e.g. France
 # see https://www.ncbi.nlm.nih.gov/genbank/collab/country/
 ncbiCountry = "USA"
+# alternative email address, only used for NCBI submissions and not required
+# altEmail = "johndoe@gmail.com"
 
 affiliation = {
 "affil" : "University of California, Santa Cruz",

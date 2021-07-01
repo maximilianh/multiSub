@@ -772,11 +772,18 @@ def makeTemplate():
     # and put it into ~/.multiSub/template ...
     cf = getConfig()
 
+    if "ncbiTemplateFile" in cf:
+        return io.open(cf["ncbiTemplateFile"], "rt").read()
+
     last = cf["contact"][0]
     first = cf["contact"][1]
     middle = cf["contact"][2]
     email = cf["email"]
     phone = cf["phone"]
+
+    altEmail = email
+    if "altEmail" in cf:
+       altEmail = cf["altEmail"]
 
     af = cf["affiliation"]
     afUni = af["affil"]
@@ -842,6 +849,8 @@ Seqdesc ::= user {
   type str "Submission",
   data {
     {
+     label str "AdditionalComment",
+     data str "ALT EMAIL:%(altEmail)s"
     }
   }
 }
