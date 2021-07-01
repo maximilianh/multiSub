@@ -29,6 +29,12 @@ authors = [
     ("Hinrichs", "Angie", ""),
 ]
 
+# rename fields from the input file to other field names
+# list of valid source tags: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html#modifiers
+# metaFieldMap = {
+#    "sampling_method" : "isolation_source"
+#    }
+
 # for the GISAID csv file
 gisaidUser =  "doej"
 gisaidLocation =  "North America / USA / California / Santa Cruz"
@@ -62,3 +68,7 @@ enaCollInst = enaCenter+", "+affiliation["street"]+", "+affiliation["city"]+" "+
 enaCountry = affiliation["country"]
 enaRegion = affiliation["city"]+", "+affiliation["sub"]
 
+# if you want to tweak the default submitter information template, create one
+# here https://submit.ncbi.nlm.nih.gov/genbank/template/submission/, download
+# the template.txt and provide its filename here.
+# ncbiTemplateFile = "/cluster/home/max/template.txt"
