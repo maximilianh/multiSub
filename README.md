@@ -109,35 +109,41 @@ files for NCBI and GISAID into mySub/:
 
     ./multiSub convDir mySeqs mySub -f ncbi,gisaid
 
-## Unusual cases
 
-Mixing different file types: with the convDir command, you can merge datasets in different formats,
-e.g. you can mix GISAID and NCBI data or mix different table formats. Fields
-that exist in one input file, but not in the others, will be set to the empty
-string.
+## Legal meta annotation table field names (columns) and what happens to their data
 
+There are four types of possible field names for the meta data:
 
-## Manual NCBI uploads
+1) the minimal ones: "isolate", "date" and "location"
+2) the following GISAID field names: covv_collection_date, covv_virus_name, covv_location, covv_assembly_method, covv_coverage, covv_seq_technology
+3) NCBI source tags, listed here: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html
+4) the NCBI Structured comment field names: "Assembly Name", "Assembly Method", "Genome Coverage", "Sequencing Technology", see: https://www.ncbi.nlm.nih.gov/genbank/structuredcomment
+
+You can also rename any of your own input fields with other names but similar content to the NCBI names using the name mapping table in the configuration statement "metaFieldMap". See the sample config file https://hgwdev.gi.ucsc.edu/~max/multiSub/config
+
+## Submission as a manual NCBI upload
 
 Go to https://submit.ncbi.nlm.nih.gov/subs/genbank/, create a new submission
 and when prompted, upload the ncbiSeqsAndSource.fa file. The file contains both
 the sequences and the source tags, so you should not have to do anything else,
-just click the "Continue" buttons.
+just click the "Continue" buttons a few times in the assistant.
 
-If you receive an email with error messages some times later, you can download
-the error report file and provide it via --skipFile to "multiSub conv".
-Any sequences with errors will then be skipped. This will create a new
-ncbiSeqsAndSource.fa file which you can upload. However, you can also check 
-the box "ignore errors" during the submission so you do not have to worry
-about skipping the sequences with errors.
+Check the box "ignore errors" on the NCBI website, so you don't have to worry
+about sequences that NCBI thinks are invalid, these will simply be skipped. 
 
-## Manual ENA uploads
+If you forgot the check this box, and you receive an email with error messages
+later and a rejected submission, you can download the error report file and
+provide it via --skipFile to "multiSub conv".  Any sequences with errors will
+then be skipped. This will create a new ncbiSeqsAndSource.fa file which you can
+upload again. But the skip checkbox is easier.
+
+## Submission as manual ENA uploads
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-sequenceChoice-start.
 
 TODO.
 
-## Automated Genbank uploads
+## Submission as automated Genbank uploads
 
 Request an FTP username and password from gb-admin@ncbi.nlm.nih.gov
 
@@ -170,7 +176,7 @@ Download the report:
 
     ./multiSub down-ncbi mySub --prod
 
-## Automated ENA uploads
+## Submission as automated ENA uploads
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account.
 Paste your new username and password into ~/.multiSub/config under enaUser and enaPass.
@@ -204,7 +210,7 @@ error happened on the production server, not in testing mode, it may be best to
 read the ENA API documentation on how to reset your upload (look at the receipt XML)
 or contact the ENA helpdesk or me. 
 
-## Automated GISAID uploads
+## Submission as automated GISAID uploads
 
 NOTE: I was unable to test this, because GISAID will not send me an upload token. It should
 work though. Please contact me if you were able to test it or would share a token for testing.
@@ -227,3 +233,11 @@ And upload it:
     ./multiSub up-gisaid mySub
 
 GISAID upload error messages are written to mySub/gisaidFail.csv
+
+## Unusual cases
+
+Mixing different file types: with the convDir command, you can merge datasets in different formats,
+e.g. you can mix GISAID and NCBI data or mix different table formats. Fields
+that exist in one input file, but not in the others, will be set to the empty
+string.
+
