@@ -25,6 +25,8 @@ can be easily added, just email examples to maxh@ucsc.edu.
 Many thanks to Stephan Fuchs and Kyanoush Yahosseini, Robert Koch Institut,
 Berlin, for sending me their Python ENA uploader code, from which I copied. Also
 thanks to the ENA Helpdesk and the NCBI Helpdesk for their quick replies.
+Also to Kelsey Florek and Ethan Wang for bug reports. The NCBI bulk upload 
+draws heavily from examples provided by Danny Park at the Broad Institute.
 Without all of these people, this program would not have been possible.
 
 ## Installation and requirements
