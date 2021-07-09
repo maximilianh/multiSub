@@ -391,6 +391,10 @@ def errAbort(msg):
 
 def checkDate(dateStr):
     " throw error is date is not in format 2020-03-30 "
+    if "-" not in dateStr:
+        logging.warn("Found date '%s'. This is an accepted date for GISAID, but not for all other databases. Please consider updating your input files with proper dates. For public health purposes having at least the month is crucial. This script will set the date to June 1st of the same year now, but please fix the input data rather than creating incorrect dates." % dateStr)
+        dateStr = dateStr+"-06-01"
+
     year, month, day = dateStr.split("-")
     year = int(year.strip())
     month = int(month.strip())
@@ -1219,19 +1223,27 @@ def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
         alias = makeEnaAlias(prefix, seqMeta)
 
         # see https://wwwdev.ebi.ac.uk/ena/submit/webin-cli/swagger-ui/index.html?configUrl=/ena/submit/webin-cli/v3/api-docs/swagger-config
+        coverage = float(seqMeta.get("Genome Coverage", 1.0))
+        program = seqMeta.get("Assembly Method", "unknown")
+        seqTech = seqMeta.get("Sequencing Technology", cf.get("enaPlatform", "unknown"))
+
         data = {
             'name': alias,
             'study': cf["enaProj"],
             'sample': alias,
             'alias': alias,
-            'coverage': 1.0,
-            'program': 'unknown',
-            'platform': cf["enaPlatform"],
+            'coverage': coverage,
+            'program': program,
+            'platform': seqTech,
             'sequence': seq
         }
+
         jsonStr = json.dumps(data, indent=4)
 
         headers = {'accept': 'application/json', 'Content-Type': 'application/json'}
+
+        logging.debug("Sending POST request to %s" % asmUrl)
+        logging.debug("JSON string: %s" % jsonStr)
 
         resp = requests.post(asmUrl, data=jsonStr, auth=auth, headers=headers)
         if resp.status_code != 200:
@@ -1353,8 +1365,8 @@ def upEna(sampleFname, seqFname, metaFname, seqLog, sampleLogFn, accLogFn, prefi
     seqUpUrl = baseUrl + "webin-cli/api/v1/genome/covid-19"
     upEnaSeq(prefix, seqs, meta, seqUpUrl, accLogFn, auth)
 
-def downNcbi(ncbiBatchFn, isProd, outFname):
-    " download NCBI status file "
+def downNcbi(ncbiBatchFn, outDir, isProd):
+    " download NCBI status file, returns list of files downloaded "
     seqsFname = join(dirname(ncbiBatchFn), "seqs.fa")
     if not isfile(seqsFname):
         errAbort("%s does not exist. Sure that %s contains the output of a 'conv' or 'convDir' run?" \
@@ -1372,11 +1384,25 @@ def downNcbi(ncbiBatchFn, isProd, outFname):
     ftp.cwd(ncbiBatch)
 
     import ftplib
-    try:
-        ftp.retrbinary("RETR " + "report.1.xml", open(outFname, 'wb').write)
-        logging.info("Created %s" % outFname)
-    except ftplib.error_perm as ex:
-        logging.warning("NCBI results are not ready yet. %s" % ex)
+
+    fnames = ftp.nlst()
+    outFnames = []
+    for fname in fnames:
+        if not fname.startswith("report"):
+            continue
+        logging.info("Downloading %s", fname)
+        outFname = join(outDir, fname)
+        outFnames.append(outFname)
+        try:
+            ftp.retrbinary("RETR " + fname, open(outFname, 'wb').write)
+            logging.info("Created %s" % outFname)
+        except ftplib.error_perm as ex:
+            logging.warning("Cannot download %s. Error %s" % (fname, ex))
+
+    return outFnames
+
+
+
 
 def init():
     " download the config files into ~/.multiSub "
@@ -1510,8 +1536,11 @@ def main():
     elif cmd=="down-ncbi":
         dataDir = args[1]
         ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
-        ncbiAccFn = join(dataDir, "ncbiReport.xml")
-        downNcbi(ncbiBatchFn, options.prod, ncbiAccFn)
+        fnames = downNcbi(ncbiBatchFn, dataDir, options.prod)
+        if len(fnames)==0:
+            logging.info("No NCBI job status files yet. Please wait some more, then retry.")
+        else:
+            logging.info("Downloaded %d files into %s" % (len(fnames), dataDir))
 
     elif cmd=="up-ena":
         dataDir = args[1]

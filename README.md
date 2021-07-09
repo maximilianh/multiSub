@@ -55,8 +55,7 @@ https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 Using Microsoft Windows ? Little command line experience? Please contact me at
 maxh@ucsc.edu. The script runs in the Windows WSL, but I can also provide a
 normal Windows .exe version, if that is helpful. I could make it so that you
-only have to drag-and-drop a folder onto the program in Windows, if that is
-helpful.
+only have to drag-and-drop a folder onto the program in Windows.
 
 ## Input 
 
@@ -97,10 +96,11 @@ The absolutely minimal example:
 Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, date, isolate) to 
 the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
 
-    wget https://raw.githubusercontent.com/maximilianh/muliSub/main/tests/ucsc1/mySeqs.fa
-    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv
+    mkdir my
+    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa -O my/mySeqs.fa
+    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv -O my/mySeqs.tsv
 
-    ./multiSub conv mySeqs.fa mySeqs.tsv mySub
+    ./multiSub conv my/mySeqs.fa my/mySeqs.tsv mySub
 
 A copy of the output files is here: https://genome-test.gi.ucsc.edu/~max/multiSub/out/ucsc1/
 
