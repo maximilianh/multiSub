@@ -925,6 +925,57 @@ def makeGenbankSubXml():
     """ % locals()
     return xml
 
+def makeBiosampleSubXml(meta):
+    " generate a NCBI submission.xml file for biosamples "
+    cf = getConfig()
+    ncbiUser = cf["ncbiUser"]
+    uniqueId = now()
+    xmls = [makeSubXmlDesc(ncbiUser)]
+
+    for seqId, sampleMeta in meta.items():
+        s = """
+<Action>
+<AddData target_db="BioSample">
+  <Data content_type="XML">
+    <XmlContent>
+      <BioSample schema_version="2.0">
+        <SampleId>
+          <SPUID spuid_namespace="ucsc-id">{isolate}</SPUID>
+        </SampleId>
+        <Descriptor>
+          <Description/>
+        </Descriptor>
+        <Organism>
+          <OrganismName>{organism}</OrganismName>
+          <IsolateName>{isolate}</IsolateName>
+        </Organism>
+        <BioProject>
+          <PrimaryId>{bioproject_accession}</PrimaryId>
+        </BioProject>
+        <Package>Pathogen.cl</Package>
+        <Attributes>
+        """.format(**sampleMeta)
+
+        xmls.append(s)
+
+        for key, val in sampleMeta.items():
+            xmls.append('<Attribute attribute_name="%s">%s</Attribute>\n' % (key, val))
+
+        s = """</Attributes>
+      </BioSample>
+    </XmlContent>
+  </Data>
+  <Identifier>
+    <SPUID spuid_namespace="ucsc-id">%s</SPUID>
+  </Identifier>
+</AddData>
+</Action>\n""" % sampleMeta["isolate"]
+
+        xmls.append(s)
+
+    xmls.append("</Submission>")
+    return "".join(xmls)
+
 def metaToNcbiFtp(meta):
     """ add a few fields that are required for NCBI's ftp upload: organism, country, host
     Then split the meta data into source tags and comments and return as a pair
@@ -1533,6 +1584,12 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
         bioMeta = metaToBiosample(meta)
         writeMetaTsv(bioMeta, io.open(sampleFn, "wt"))
         logging.info("Wrote %s" % sampleFn)
+
+        xmlFn = join(outDir, "biosample.xml")
+        xmlStr = makeBiosampleSubXml(bioMeta)
+        with open(xmlFn, "w") as ofh:
+            ofh.write(xmlStr)
+        logging.info("Wrote %s" % xmlFn)
 
 def runCmd(cmd):
     " output and run command "
