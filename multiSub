@@ -30,7 +30,7 @@ from io import StringIO # python2.6 and 3
 isPy2 = (sys.version_info.major == 2)
 
 # all possible values for the --format option
-allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena"]
+allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena", "biosample"]
 
 # when importing csv/tsv/xls files, use the following translation table to our internal annotation format
 # I use NCBI's source tag definition for now for the internal storage
@@ -67,6 +67,12 @@ config = {
 
     # please do not change these values here, run "multiSub init" and change the values in 
     # ~/.multiSub/config
+
+    # default NCBI biosamples attributes
+    "host" : "Homo sapiens",
+    "host_disease" : "COVID-19",
+    "attribute_package" : "Pathogen.cl",
+    "organism" : "Severe acute respiratory syndrome coronavirus 2",
 
     # bogus values:
     # overwritten by ~/.multiSub/config, these bogus values are only there so the script can run 
@@ -122,6 +128,13 @@ allSourceTags = set("isolate,strain,specimen_voucher,bio_material,biotype,cell_l
 # all possible NCBI structured comments tags
 commentTags = set(["Assembly Name", "Assembly Method", "Genome Coverage", "Sequencing Technology"])
 
+# all possible biosample fields
+# copied from the template that you can download when submitting a biosample as a bulk .tsv file
+# first field is always "sample_name"
+reqBiosFields = ["organism", "collected_by", "collection_date", "geo_loc_name", "host", "host_disease", "isolate",
+ "isolation_source"]
+allBioFields ="sample_title","bioproject_accession","organism","collected_by","collection_date","geo_loc_name","host","host_disease","isolate","isolation_source","antiviral_treatment_agent","collection_device","collection_method","date_of_prior_antiviral_treat","date_of_prior_sars_cov_2_infection","date_of_sars_cov_2_vaccination","exposure_event","geo_loc_exposure","gisaid_accession","gisaid_virus_name","host_age","host_anatomical_material","host_anatomical_part","host_body_product","host_disease_outcome","host_health_state","host_recent_travel_loc","host_recent_travel_return_date","host_sex","host_specimen_voucher","host_subject_id","lat_lon","passage_method","passage_number","prior_sars_cov_2_antiviral_treat","prior_sars_cov_2_infection","prior_sars_cov_2_vaccination","purpose_of_sampling","purpose_of_sequencing","sars_cov_2_diag_gene_name_1","sars_cov_2_diag_gene_name_2","sars_cov_2_diag_pcr_ct_value_1","sars_cov_2_diag_pcr_ct_value_2","sequenced_by","vaccine_received","virus_isolate_of_prior_infection","description"
+
 configDone = False
 
 # URL to download the 'init' config file
@@ -150,7 +163,6 @@ def getConfig():
         if "metaFieldMap" in config:
             metaFieldMap.update(config["metaFieldMap"])
     return config
-
 
 # ==== functions =====
 def parseArgs():
@@ -967,6 +979,35 @@ def metaToNcbiFtp(meta):
         comments = None
     return tags, comments
 
+def metaToBiosample(meta):
+    """
+    convert meta data to NCBI biosamples format
+    """
+
+    bmeta = OrderedDict()
+    cf = getConfig()
+
+    for seqId, metaDict in meta.items():
+        sampleMeta = OrderedDict()
+        sampleMeta["sample_name"] = metaDict["isolate"]
+
+        for bioName in allBioFields:
+            fromField = bioName
+            if bioName=="geo_loc_name":
+                fromField = "location"
+            elif bioName in metaDict:
+                sampleMeta[bioName] = metaDict[fromField]
+            elif bioName in cf:
+                sampleMeta[bioName] = cf[bioName]
+            else:
+                if bioName in reqBiosFields:
+                    errAbort("sequence %s: field %s is required for the biosample export, but it's not in the input meta "
+                    " nor in ~/.multiSub/config " % (seqId, bioName))
+
+        bmeta[seqId] = sampleMeta
+
+    return bmeta
+
 def isoToGisaid(isolate):
     " reformat NCBI isolate string to GISAID format "
     virus, host, country, identifier, year = isolate.split("/")
@@ -1434,7 +1475,7 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
         os.mkdir(outDir)
         logging.info("Created directory %s" % outDir)
 
-    # always create a raw fasta and imported tsv
+    # always create a raw fasta and tsv after data import
     seqFn = join(outDir, "seqs.fa")
     writeFasta(seqs, io.open(seqFn, "wt"))
     # raw meta file
@@ -1460,6 +1501,12 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
     if "ena" in outFmts:
         sampleFn = join(outDir, "ena.xml")
         writeEnaXml(meta, io.open(sampleFn, "wt"), enaPrefix)
+
+    if "biosample" in outFmts:
+        sampleFn = join(outDir, "biosample.tsv")
+        bioMeta = metaToBiosample(meta)
+        writeMetaTsv(bioMeta, io.open(sampleFn, "wt"))
+        logging.info("Wrote %s" % sampleFn)
 
 def runCmd(cmd):
     " output and run command "
