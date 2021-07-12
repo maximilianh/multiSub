@@ -194,6 +194,8 @@ def parseArgs():
         action="store", help="file with at least one column with the sequence "
         "identifier of sequences to remove. Can be the raw NCBI error report text file. These "
         "sequences and their annotations will be skipped during the convert step.")
+    parser.add_option("-a", "--accs", dest="accFiles",
+        action="append", help="File with accessions. Can be in biosample tsv format. parsed fields are 'sample_name' and 'accession'. Can be used multiple times (e.g. to provide one GISAID file and also the Biosamples file)")
     parser.add_option("-f", "--format", dest="format", action="store",
         default="all",
         help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
@@ -631,7 +633,25 @@ def writeMetaTsv(meta, ofh):
         ofh.write(u"\t".join(vals))
         ofh.write(u"\n")
 
-def metaTransform(meta):
+def addAccs(seqId, seqMeta, accs):
+    """ accs is a dict with isolate or sequence ID -> list of accessions. Add these to seqMeta, is possible """
+    seqAccs = []
+    if seqMeta["isolate"] in accs:
+        seqAccs = accs[seqMeta["isolate"]]
+    elif seqId in accs:
+        seqAccs = accs[seqId]
+
+    for acc in seqAccs:
+        if acc.startswith("EPI_"):
+            seqMeta["gisaid_accession"] = acc
+        elif acc.startswith("SAMN"):
+            seqMeta["BioSample"] = acc
+        else:
+            assert(False) # accession format was not recognized
+
+    return seqMeta
+
+def metaTransform(meta, accs):
     """ convert meta data to a standard format, return as 'seqId' -> dict of 'key:'value'.
     """
     # See https://submit.ncbi.nlm.nih.gov/sarscov2/genbank/
@@ -643,25 +663,27 @@ def metaTransform(meta):
 
     newMeta = dict()
     for seqId, seqMeta in meta.items():
-        ns = OrderedDict()
+        newSeqMeta = OrderedDict()
         for key, val in seqMeta.items():
             if key in metaFieldMap:
                 key = metaFieldMap.get(key, key)
-            ns[key] = val.strip()
+            newSeqMeta[key] = val.strip()
 
         # if there is no isolate field, use the sequence ID
-        if "isolate" not in ns:
-            ns["isolate"] = seqId
+        if "isolate" not in newSeqMeta:
+            newSeqMeta["isolate"] = seqId
 
         # check that the required fields are there - cannot be made in checkBoth(), as the fixers
         # need them
         for field in reqFields:
-            if field not in ns or ns[field]=="":
+            if field not in newSeqMeta or newSeqMeta[field]=="":
                 errAbort("meta data, row '%s': Field %s does not exist or is empty" % (seqId, field))
 
-        fixupIsolate(ns)
+        fixupIsolate(newSeqMeta)
 
-        newMeta[seqId] = ns
+        addAccs(seqId, newSeqMeta, accs)
+
+        newMeta[seqId] = newSeqMeta
 
     return newMeta
 
@@ -1530,7 +1552,21 @@ def findFiles(inDir):
 
     return faFnames, metaFnames
 
-def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
+def readAccs(accFnames):
+    " read biosample or similar table file and return sample_name -> accession "
+    ret = defaultdict(set)
+    for accFname in accFnames:
+        headers, rows = parseTable(accFname)
+        accIdx = headers.index("accession")
+        sampleIdx = headers.index("sample_name")
+        for row in rows:
+            acc = row[accIdx]
+            sample = row[sampleIdx]
+            ret[sample].add(acc)
+    logging.info("Read accessions for %d sample names from %s" % (len(ret), repr(accFnames)))
+    return ret
+
+def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFiles):
     " convert input files to outDir "
     seqs = []
     for faFn in faFnames:
@@ -1542,7 +1578,11 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
 
     logging.info("Read %d sequences and %d annotation rows" % (len(seqs), len(meta)))
 
-    meta = metaTransform(meta)
+    accs = {}
+    if accFiles:
+        accs = readAccs(accFiles)
+
+    meta = metaTransform(meta, accs)
 
     seqs, meta = checkBoth(seqs, meta)
 
@@ -1623,7 +1663,8 @@ def main():
         if faFname.endswith(".xls") or faFname.endswith(".csv") or faFname.endswith(".tsv"):
             errAbort("The order of the arguments is: fasta file first, meta file next. You seem to have "
                     "provided them in the opposite order")
-        convFiles([faFname], [metaFname], outDir, outFmts, options.skipFile, options.prefix)
+
+        convFiles([faFname], [metaFname], outDir, outFmts, options.skipFile, options.prefix, options.accFiles)
 
     elif cmd=="convDir":
         inDir, outDir = args[1:]

@@ -1,14 +1,18 @@
 all: test-ucsc1 test-gisaid1 test-bulk1
 
 mkdir:
-	mkdir -p out
+	mkdir -p out/{ucsc1,gisaid1,bulk1,kelsey}
+
 
 test-gisaid1: mkdir
 	../multiSub conv gisaid1/ucsc_gi_csrun005_all_seqs_v1.fasta gisaid1/20210403_ucsc_gi_csrun005_metadata_v1.xls out/gisaid1/
 
 test-ucsc1: mkdir
-	../multiSub conv ucsc1/mySeqs.fa ucsc1/mySeqs.tsv out/ucsc1/ --skip ucsc1/SUB9389947-detailed-error-report.txt
+	../multiSub conv ucsc1/mySeqs.fa ucsc1/mySeqs.tsv out/ucsc1/ --skip ucsc1/SUB9389947-detailed-error-report.txt -a ucsc1/gisaidAccs.tsv
 
+test-kelsey:
+	../multiSub conv kelsey/test.fa kelsey/test.csv out/kelsey/
+	
 test-bulk1: mkdir
 	mkdir -p bulk1
 	rm -f bulk1/*.fa bulk1/*.tsv
