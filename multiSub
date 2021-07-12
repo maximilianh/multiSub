@@ -969,7 +969,7 @@ def metaToNcbiFtp(meta):
         if "host" not in tagDict:
             tagDict["host"] = cf["ncbi-host"]
         if not "organism" in tagDict:
-            tagDict["organism"] = "Severe acute respiratory syndrome coronavirus 2"
+            tagDict["organism"] = cf["organism"]
 
         tags[seqId] = tagDict
 
@@ -998,8 +998,9 @@ def metaToBiosample(meta):
         for bioName in allBioFields:
             fromField = bioName
             if bioName=="geo_loc_name":
-                fromField = "location"
-            elif bioName in metaDict:
+                fromField = "country"
+
+            if fromField in metaDict:
                 sampleMeta[bioName] = metaDict[fromField]
             elif bioName in cf:
                 sampleMeta[bioName] = cf[bioName]
