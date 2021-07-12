@@ -15,8 +15,12 @@ test-bulk1: mkdir
 	cp gisaid1/* ucsc1/* bulk1
 	../multiSub convDir bulk1 out/bulk1/
 
-test-csv-gisaid:
+test-csv-gisaid: mkdir
 	../multiSub conv out/ucsc1/gisaid.fa out/ucsc1/gisaid.csv out/csv-gisaid
+
+test-kelsey: mkdir
+	../multiSub conv kelsey/test.fa kelsey/test.csv out/kelsey
+
 
 up-ncbi:
 	../multiSub up-ncbi out/gisaid1/
