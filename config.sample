@@ -1,3 +1,4 @@
+# --- REQUIRED CONFIGURATION ITEMS ---
 # general info, used for GISAID / ENA files
 # format: (lastname, firstname, middle initial)
 contact = ("Doe", "John", "M")
@@ -21,40 +22,50 @@ affiliation = {
 "postal-code" : "95064"
 }
 
-# used for GISAID and ENA
-platform = "Illumina NextSeq 550"
-host_common = "human" # common name of host, all lowercase
-
 authors = [
     # format: (lastname, firstname, middle initial)
     ("Haussler","David", ""),
     ("Hinrichs", "Angie", ""),
 ]
 
-# rename fields from the input file to other field names
-# list of valid source tags: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html#modifiers
-# metaFieldMap = {
-#    "sampling_method" : "isolation_source"
-#    }
+# --- REQUIRED CONFIGURATION ENDS ---
+# below you find configuration sections for each export database
 
-# for the GISAID csv file
+# -- For NCBI Biosample submission ---
+# create a default for the submitting institution from affil but you can also define it yourself here
+collected_by = affiliation["affil"]+", "+affiliation["div"]
+#collected_by = "UCSC Medical Diagnostics Lab"
+
+# A BioProject is an entry for your project, it has a title, authors, possibly papers.
+# groups together all your submissions
+# Create one here https://submit.ncbi.nlm.nih.gov/subs/bioproject/
+#bioproject_accession = "PRJNA745535"
+isolation_source = "missing"
+
+# --- For the GISAID csv file ---
 gisaidUser =  "doej"
 gisaidLocation =  "North America / USA / California / Santa Cruz"
 gisaid_host =  host_common.capitalize()
 gisaid_technology = platform
 gisaid_assembly_method = ""
 
-# for automated NCBI uploads via FTP
+# --- For automated NCBI uploads via FTP --
 ncbiUser = "MYPASS"
 ncbiPass = "MYUSER"
 
-# For ENA uploads via the API
+# --- For ENA uploads via the API ---
 # Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account and enter below
 enaUser = "Webin-123sd"
 enaPass = "X234xcc"
 # Create a study at https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start 
 # and paste its identifier (PRJEBxxx) below
 enaProj = "PRJEB12323"
+
+# --- rarely used configuration items ---
+# used below for GISAID and ENA
+platform = "Illumina NextSeq 550"
+host_common = "human" # common name of host, all lowercase
+
 
 # build GISAID submitter info strings from affiliation above
 gisaid_orig_lab = affiliation["affil"]+ ", " +affiliation["div"]
@@ -69,6 +80,12 @@ enaCollector = contact[1]+" "+contact[0] # mandatory field, sigh
 enaCollInst = enaCenter+", "+affiliation["street"]+", "+affiliation["city"]+" "+affiliation["sub"]+ " "+affiliation["postal-code"] + ", " + affiliation["country"]
 enaCountry = affiliation["country"]
 enaRegion = affiliation["city"]+", "+affiliation["sub"]
+
+# you can rename fields from the input file to other field names
+# list of valid source tags: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html#modifiers
+# metaFieldMap = {
+#    "sampling_method" : "isolation_source"
+#    }
 
 # if you want to tweak the default submitter information template, create one
 # here https://submit.ncbi.nlm.nih.gov/genbank/template/submission/, download
