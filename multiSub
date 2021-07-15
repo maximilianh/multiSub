@@ -73,9 +73,12 @@ config = {
     "host_disease" : "COVID-19",
     "attribute_package" : "Pathogen.cl",
     "organism" : "Severe acute respiratory syndrome coronavirus 2",
+    # dummy values, please please run "multiSub init" and replace in ~/.multiSub/config 
+    "collected_by" : "UCSC Molecular Diagnostics Lab",
+    "isolation_source" : "unknown",
+    # file generation does not trigger an error.
 
-    # bogus values:
-    # overwritten by ~/.multiSub/config, these bogus values are only there so the script can run 
+    # overwritten by ~/.multiSub/config, these ENA dummy values are only there so the script can run 
     # without a config file
     "enaCenter" : "UCSC Genomics Institute",
     "enaCollector" : "UCSC Medical Diagnostics Lab",
@@ -955,6 +958,9 @@ def makeBiosampleSubXml(meta):
     xmls = [makeSubXmlDesc(ncbiUser)]
 
     for seqId, sampleMeta in meta.items():
+        if not "bioproject_accession" in sampleMeta:
+            sampleMeta["bioproject_accession"] = "PRNXXXX" # this is just so we can generate the file
+
         s = """
 <Action>
 <AddData target_db="BioSample">
