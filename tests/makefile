@@ -4,6 +4,9 @@ mkdir:
 	mkdir -p out/{ucsc1,gisaid1,bulk1,kelsey}
 
 
+test-mini: mkdir
+	../multiSub conv mini/seqs.fa mini/meta.tsv out/mini/
+
 test-gisaid1: mkdir
 	../multiSub conv gisaid1/ucsc_gi_csrun005_all_seqs_v1.fasta gisaid1/20210403_ucsc_gi_csrun005_metadata_v1.xls out/gisaid1/
 
