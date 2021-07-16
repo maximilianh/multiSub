@@ -72,7 +72,8 @@ config = {
     # default NCBI biosamples attributes
     "host" : "Homo sapiens",
     "host_disease" : "COVID-19",
-    "attribute_package" : "Pathogen.cl",
+    #"attribute_package" : "Pathogen.cl", # not optimal, as it requires lat_lon, now they have a better package
+    "attribute_package" : "SARS-CoV-2.cl.1.0",
     "organism" : "Severe acute respiratory syndrome coronavirus 2",
     # dummy values, please please run "multiSub init" and replace in ~/.multiSub/config 
     "collected_by" : "UCSC Molecular Diagnostics Lab",
@@ -176,7 +177,7 @@ def parseArgs():
         init - write an empty config template to ~/.multiSub/config
         conv faFname tsvFname outDir - converts a fasta + tsv/csv/xls to files in outDir
         convDir inDir outDir - converts all fa/tsv/csv/xls files in inDir to outDir
-        up-ncbi outDir - upload the files ncbiFtp.zip/submission.xml in outDir to NCBI
+        up-ncbi outDir - upload the files genbank.zip/genbank.xml in outDir to NCBI
         down-ncbi outDir - download NCBI status messages to outDir
         up-ena outDir - upload the file ena.xml+seqs in outDir to ENA, write receipt to outDir
         up-gisaid outDir - upload the files gisaid.* in outDir to GISAID
@@ -280,7 +281,7 @@ def parseFasta(fname):
   doneIds = set()
 
   for line in ifh:
-          line = line.rstrip("\n\r")
+          line = line.rstrip("\r\n")
           if line=="" or line.startswith("#"):
               continue
           elif not line.startswith(">"):
@@ -937,7 +938,7 @@ def makeGenbankSubXml():
     xml = makeSubXmlDesc(ncbiUser) + """
   <Action>
     <AddFiles target_db="GenBank">
-      <File file_path="ncbiFtp.zip">
+      <File file_path="genbank.zip">
         <DataType>genbank-submission-package</DataType>
       </File>
       <Attribute name="wizard">BankIt_SARSCoV2_api</Attribute>
@@ -959,8 +960,11 @@ def makeBiosampleSubXml(meta):
     xmls = [makeSubXmlDesc(ncbiUser)]
 
     for seqId, sampleMeta in meta.items():
+        # make sure an attribute_package is always present
+        if not "attribute_package" in sampleMeta:
+            sampleMeta["attribute_package"] = cf["attribute_package"]
         if not "bioproject_accession" in sampleMeta:
-            sampleMeta["bioproject_accession"] = "PRNXXXX" # this is just so we can generate the file
+            sampleMeta["bioproject_accession"] = "PRNXXXX" # this is just so we can generate the file without a config file
 
         s = """
 <Action>
@@ -981,7 +985,7 @@ def makeBiosampleSubXml(meta):
         <BioProject>
           <PrimaryId>{bioproject_accession}</PrimaryId>
         </BioProject>
-        <Package>Pathogen.cl</Package>
+        <Package>{attribute_package}</Package>
         <Attributes>
         """.format(**sampleMeta)
 
@@ -1289,25 +1293,21 @@ def connectNcbi(isProd):
     ftp.cwd(dirName)
     return ftp
 
-def upNcbi(zipFname, xmlFname, batchFn, isProd):
-    " upload the zip files onto the genbank ftp server, by default as a testing submission "
-    ftp = connectNcbi(isProd)
+def uploadNcbi(fnames, dataDir, suffix, isProd):
+    " upload files to NCBI and create submit.ready "
+    batchId = getNcbiBatchId(dataDir)
+    subDir = batchId+"-"+suffix
 
-    subDir = now()
+    ftp = connectNcbi(isProd)
     ftp.mkd(subDir)
     ftp.cwd(subDir)
-    logging.info("make directory %s" % subDir)
+    logging.info("Made NCBI FTP subdirectory %s" % subDir)
 
-    logging.info("Uploading "+zipFname)
-    f1 = io.open(zipFname,'rb')
-    zipTargetFn = basename(zipFname)
-    ftp.storbinary('STOR %s' % zipTargetFn, f1)
-    f1.close()
-
-    logging.info("Uploading "+xmlFname)
-    f2 = io.open(xmlFname,'rb')
-    ftp.storbinary('STOR submission.xml', f2)
-    f2.close()
+    for localFname, targetFname in fnames:
+        logging.info("Uploading "+localFname+" to "+targetFname)
+        f1 = io.open(localFname,'rb')
+        ftp.storbinary('STOR %s' % targetFname, f1)
+        f1.close()
 
     logging.info("Creating submit.ready")
     with StringIO() as tmpFh:
@@ -1316,12 +1316,8 @@ def upNcbi(zipFname, xmlFname, batchFn, isProd):
 
     ftp.quit()
 
-    ofh = open(batchFn, "wt") # not unicode, because subdir is a byte string on py2
-    ofh.write(subDir)
-    ofh.close()
-
-    logging.info("Wrote NCBI FTP directory name (=batch name) to %s" % batchFn)
-    logging.info("Wait for some time, then use the 'down-ncbi' command to retrieve the status of this batch")
+    logging.info("Wait for some time, then use the 'down-%s' command to retrieve the status of this batch" %
+        suffix)
 
 def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
     " upload sequences to ENA "
@@ -1487,20 +1483,20 @@ def upEna(sampleFname, seqFname, metaFname, seqLog, sampleLogFn, accLogFn, prefi
     seqUpUrl = baseUrl + "webin-cli/api/v1/genome/covid-19"
     upEnaSeq(prefix, seqs, meta, seqUpUrl, accLogFn, auth)
 
-def downNcbi(ncbiBatchFn, outDir, isProd):
+def downNcbi(outDir, isProd, dbType):
     " download NCBI status file, returns list of files downloaded "
-    seqsFname = join(dirname(ncbiBatchFn), "seqs.fa")
-    if not isfile(seqsFname):
-        errAbort("%s does not exist. Sure that %s contains the output of a 'conv' or 'convDir' run?" \
-            % (seqsFname, dirname(seqsFname)))
+    #seqsFname = join(dirname(ncbiBatchFn), "seqs.fa")
+    #if not isfile(seqsFname):
+        #errAbort("%s does not exist. Sure that %s contains the output of a 'conv' or 'convDir' run?" \
+            #% (seqsFname, dirname(seqsFname)))
 
-    if not isfile(ncbiBatchFn):
-        errAbort("%s does not exist. You need to run up-ncbi succesfully once before "
-            "you can run down-ncbi." % ncbiBatchFn)
+    #if not isfile(ncbiBatchFn):
+        #errAbort("%s does not exist. You need to run up-ncbi succesfully once before "
+            #"you can run down-ncbi." % ncbiBatchFn)
 
-    ncbiBatch = io.open(ncbiBatchFn).read()
-    logging.info("Read previous NCBI batch ID from %s: '%s'" % (ncbiBatchFn, ncbiBatch))
+    #ncbiBatch = subDir
 
+    ncbiBatch = getNcbiBatchId(outDir)+"-"+dbType
     ftp = connectNcbi(isProd)
     logging.info("CWD %s" % ncbiBatch)
     ftp.cwd(ncbiBatch)
@@ -1513,7 +1509,7 @@ def downNcbi(ncbiBatchFn, outDir, isProd):
         if not fname.startswith("report"):
             continue
         logging.info("Downloading %s", fname)
-        outFname = join(outDir, fname)
+        outFname = join(outDir, dbType+"-"+fname)
         outFnames.append(outFname)
         try:
             ftp.retrbinary("RETR " + fname, open(outFname, 'wb').write)
@@ -1521,6 +1517,10 @@ def downNcbi(ncbiBatchFn, outDir, isProd):
         except ftplib.error_perm as ex:
             logging.warning("Cannot download %s. Error %s" % (fname, ex))
 
+    if len(outFnames)==0:
+        logging.info("No NCBI job status files yet. Please wait some more, then retry.")
+    else:
+        logging.info("Downloaded %d files into %s" % (len(outFnames), outDir))
     return outFnames
 
 
@@ -1613,8 +1613,8 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFil
             gbOutFn = join(outDir, "ncbiSeqAndSource.fa")
             writeGenbankTagFa(seqs, sourceTags, gbOutFn)
         if "ncbi-ftp" in outFmts:
-            zipFname = join(outDir, "ncbiFtp.zip")
-            xmlFname = join(outDir, "submission.xml")
+            zipFname = join(outDir, "genbank.zip")
+            xmlFname = join(outDir, "genbank.xml")
             writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname)
 
     if "gisaid" in outFmts:
@@ -1653,6 +1653,23 @@ def upGisaid(faFname, csvFname, failFname):
         "--failedout", failFname]
     runCmd(cmd)
 
+def getNcbiBatchId(dataDir):
+    " return the ncbi batch ID for a given directory or make a new one "
+    ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
+    if not isfile(ncbiBatchFn):
+        subDir = now()
+        ofh = io.open(ncbiBatchFn, "wb")
+        ofh.write(subDir)
+        ofh.close()
+        logging.info("Wrote NCBI FTP directory name '%s' (=batch name) to %s" % (subDir, ncbiBatchFn))
+    else:
+        ifh = io.open(ncbiBatchFn) # not unicode, because subdir is a byte string on py2
+        subDir = ifh.read()
+        ifh.close()
+        logging.info("Read NCBI FTP directory name (=batch name) from %s: %s" % (ncbiBatchFn, subDir))
+
+    return subDir
+
 def main():
     args, options = parseArgs()
 
@@ -1660,6 +1677,7 @@ def main():
 
     outFmts = getFormats(options.format)
     prefix = options.prefix
+    isProd = options.prod
 
     if cmd=="init":
         init()
@@ -1677,22 +1695,25 @@ def main():
         faFnames, metaFnames = findFiles(inDir)
         convFiles(faFnames, metaFnames, outDir, outFmts, options.skipFile, options.prefix)
 
-    elif cmd=="up-ncbi":
+    elif cmd=="up-genbank":
         dataDir = args[1]
-        zipFname = join(dataDir, "ncbiFtp.zip")
-        xmlFname = join(dataDir, "submission.xml")
-        ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
+        fnames = [(join(dataDir, "genbank.zip"), "genbank.zip"),
+            (join(dataDir, "genbank.xml"), "submission.xml")]
+        uploadNcbi(fnames, dataDir, "genbank", isProd)
 
-        upNcbi(zipFname, xmlFname, ncbiBatchFn, options.prod)
-
-    elif cmd=="down-ncbi":
+    elif cmd=="up-biosample":
         dataDir = args[1]
-        ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
-        fnames = downNcbi(ncbiBatchFn, dataDir, options.prod)
-        if len(fnames)==0:
-            logging.info("No NCBI job status files yet. Please wait some more, then retry.")
-        else:
-            logging.info("Downloaded %d files into %s" % (len(fnames), dataDir))
+        fnames = [(join(dataDir, "biosample.xml"), "submission.xml")]
+        uploadNcbi(fnames, dataDir, "biosample", isProd)
+
+    elif cmd=="down-biosample":
+        dataDir = args[1]
+        downNcbi(dataDir, isProd, "biosample")
+        parseAccs(dataDir, "biosample")
+
+    elif cmd=="down-genbank":
+        dataDir = args[1]
+        downNcbi(dataDir, isProd, "genbank")
 
     elif cmd=="up-ena":
         dataDir = args[1]
