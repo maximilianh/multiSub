@@ -16,7 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 # Written by Maximilian Haeussler, maxh@ucsc.edu, with a lot of input from
-# Kyanoush Yahosseini, RKI, for the ENA API uploader
+# Kyanoush Yahosseini, RKI, for the ENA API uploader and Danny Park, Broad for the 
+# NCBI uploaders
 
 import logging, sys, optparse, os, io, json, csv, zipfile, textwrap, subprocess
 from collections import defaultdict, OrderedDict
@@ -141,7 +142,7 @@ allBioFields ="sample_title","bioproject_accession","organism","collected_by","c
 configDone = False
 
 # URL to download the 'init' config file
-homeUrl = "https://hgwdev.gi.ucsc.edu/~max/multiSub"
+configUrl = "https://raw.githubusercontent.com/maximilianh/multiSub/main/config.sample"
 
 def getConfigFname(fname):
     " return full path to file in config dir "
@@ -1541,8 +1542,7 @@ def init():
         logging.info("No need to download config file, %s already exists" % cfgName)
         return
 
-    cfgUrl = join(homeUrl, "config")
-    httpDownload(cfgUrl, cfgName)
+    httpDownload(configUrl, cfgName)
 
 def findFiles(inDir):
     " look for fasta and tsv/csv/xls files in inDir and return as two lists, faFnames and metaFnames "

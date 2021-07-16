@@ -39,7 +39,7 @@ or:
  
     curl -O https://raw.githubusercontent.com/maximilianh/multiSub/stable/multiSub
     
-Make it executable:
+Make it executable (not on Windows):
 
     chmod a+x multiSub
 
@@ -47,17 +47,23 @@ And run it:
 
     ./multiSub --help
 
-This script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
-you do not need to install anything else. If you want to read GISAID xls files, the
+Or on Windows (install Python from https://www.microsoft.com/en-us/p/python-38/9mssztt1n39l):
+
+    python multiSub
+
+The script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
+you do not need to install anything else.
+
+If you want to read GISAID xls files, the
 script needs the xlrd Python package. You can install xlrd with "pip install
 xlrd" or, if you are not administrator, with "pip install xlrd --user".  If you
 use Mac OSX and do not have pip installed yet, run the command "curl
 https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
 
 Using Microsoft Windows ? Little command line experience? Please contact me at
-maxh@ucsc.edu. The script runs in the Windows WSL, but I can also provide a
-normal Windows .exe version, if that is helpful. I could make it so that you
-only have to drag-and-drop a folder onto the program in Windows.
+maxh@ucsc.edu. The script runs on Windows, if you install Python from the
+Microsoft Store. I can also provide a normal Windows .exe version.
+Also, a drag-and-drop file box could be added for Windows.
 
 ## Input 
 
@@ -99,8 +105,8 @@ Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, 
 the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
 
     mkdir my
-    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa -O my/mySeqs.fa
-    wget https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv -O my/mySeqs.tsv
+    curl https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa -o my/mySeqs.fa
+    curl https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.tsv -o my/mySeqs.tsv
 
     ./multiSub conv my/mySeqs.fa my/mySeqs.tsv mySub
 
