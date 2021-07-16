@@ -277,7 +277,7 @@ def parseFasta(fname):
   doneIds = set()
 
   for line in ifh:
-          line = line.rstrip("\n\r")
+          line = line.rstrip("\r\n")
           if line=="" or line.startswith("#"):
               continue
           elif not line.startswith(">"):
@@ -1704,6 +1704,7 @@ def main():
     elif cmd=="down-biosample":
         dataDir = args[1]
         downNcbi(dataDir, isProd, "biosample")
+        parseAccs(dataDir, "biosample")
 
     elif cmd=="down-genbank":
         dataDir = args[1]

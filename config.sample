@@ -34,13 +34,22 @@ authors = [
 # -- For NCBI Biosample submission ---
 # create a default for the submitting institution from affil but you can also define it yourself here
 collected_by = affiliation["affil"]+", "+affiliation["div"]
-#collected_by = "UCSC Medical Diagnostics Lab"
+#collected_by = "UCSC Molecular Diagnostics Lab"
 
 # A BioProject is an entry for your project, it has a title, authors, possibly papers.
 # groups together all your submissions
+# Instructions on how to create one are here: https://www.protocols.io/view/sars-cov-2-ncbi-submission-protocol-sra-biosample-bui7nuhn?step=3
 # Create one here https://submit.ncbi.nlm.nih.gov/subs/bioproject/
+# Bioproject is not mandatory
 #bioproject_accession = "PRJNA745535"
+# The mandatory attributes are listed here: https://www.ncbi.nlm.nih.gov/biosample/docs/packages/SARS-CoV-2.cl.1.0/
 isolation_source = "missing"
+# Note that isolation_source, just like bioproject_accession specified here, are just the default values.
+# You can always define these values on a per-sample level in the input meta table
+
+# ----- for GISAID csv and ENA ------
+platform = "Illumina NextSeq 550"
+host_common = "human" # common name of host, all lowercase
 
 # --- For the GISAID csv file ---
 gisaidUser =  "doej"
@@ -62,10 +71,6 @@ enaPass = "X234xcc"
 enaProj = "PRJEB12323"
 
 # --- rarely used configuration items ---
-# used below for GISAID and ENA
-platform = "Illumina NextSeq 550"
-host_common = "human" # common name of host, all lowercase
-
 
 # build GISAID submitter info strings from affiliation above
 gisaid_orig_lab = affiliation["affil"]+ ", " +affiliation["div"]
