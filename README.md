@@ -163,7 +163,7 @@ Convert your submission files into the NCBI FTP format:
 
 Upload sequences in mySub/ to the NCBI FTP server as a test submission:
 
-    ./multiSub up-ncbi mySub
+    ./multiSub up-genbank mySub
     
 Wait for a few hours. Retrieve the status and accessions of your submission
 and write them to the file mySub/ncbiReport.xml
@@ -172,11 +172,11 @@ and write them to the file mySub/ncbiReport.xml
     
 Upload sequences in mySub/ to the NCBI FTP server as a real submission:
 
-    ./multiSub up-ncbi mySub --prod
+    ./multiSub up-genbank mySub --prod
 
 Download the report:
 
-    ./multiSub down-ncbi mySub --prod
+    ./multiSub down-genbank mySub --prod
 
 ## Submission as automated ENA uploads
 
