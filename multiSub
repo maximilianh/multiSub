@@ -74,9 +74,12 @@ config = {
     #"attribute_package" : "Pathogen.cl", # not optimal, as it requires lat_lon, now they have a better package
     "attribute_package" : "SARS-CoV-2.cl.1.0",
     "organism" : "Severe acute respiratory syndrome coronavirus 2",
+    # dummy values, please please run "multiSub init" and replace in ~/.multiSub/config 
+    "collected_by" : "UCSC Molecular Diagnostics Lab",
+    "isolation_source" : "unknown",
+    # file generation does not trigger an error.
 
-    # bogus values:
-    # overwritten by ~/.multiSub/config, these bogus values are only there so the script can run 
+    # overwritten by ~/.multiSub/config, these ENA dummy values are only there so the script can run 
     # without a config file
     "enaCenter" : "UCSC Genomics Institute",
     "enaCollector" : "UCSC Medical Diagnostics Lab",
@@ -959,6 +962,8 @@ def makeBiosampleSubXml(meta):
         # make sure an attribute_package is always present
         if not "attribute_package" in sampleMeta:
             sampleMeta["attribute_package"] = cf["attribute_package"]
+        if not "bioproject_accession" in sampleMeta:
+            sampleMeta["bioproject_accession"] = "PRNXXXX" # this is just so we can generate the file without a config file
 
         s = """
 <Action>
