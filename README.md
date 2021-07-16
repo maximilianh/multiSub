@@ -92,6 +92,16 @@ subset, use the -f option and list the formats that you need:
 - "gisaid" - for GISAID upload in .csv format: gisaid.csv and gisaid.fa
 - "ena" - for ENA automated sample uploads in XML format: ena.xml
 
+## Configuration
+
+Run
+
+   multiSub init  # 'python multiSub init' on Windows)
+
+Then edit the file ~/.multiSub/config with your favorite text editor. You can
+set the name of your institute, your email address, your country, etc. To try
+the examples below, you do not even need to run the 'init' step yet, the script
+comes with default values.
 
 ## Example: convert files
 
@@ -101,8 +111,19 @@ The absolutely minimal example:
     printf 'isolate,date\nCA-UCSC-123,2021-03-03' > meta.csv
     ./multiSub conv seq.fa meta.csv mini/
 
-Convert sequences from mySeqs.fa with annotations in mySeqs.tsv (fields: seqId, date, isolate) to 
-the directory mySub/. Create files for NCBI, ENA and GISAID, all at the same time:
+Or on Windows:
+    curl -O https://github.com/maximilianh/multiSub/blob/main/tests/mini/seqs.fa
+    curl -O https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/mini/meta.csv 
+    python multiSub conv seqs.fa meta.csv mini/
+
+This converts sequences from mySeqs.fa with annotations in mySeqs.tsv (fields:
+seqId, date, isolate) to the directory mySub/. It fixes up the isolate names to
+conform to the INSDC and GISAID formats, trims the sequences from flanking N
+nucleotides and adds the location name ("USA" by default, but you can change
+this in the configuration file). It creates files for NCBI Genbank and
+Biosamples, ENA Analysis/Biosample and GISAID submission, all at the same time.
+
+Here is a bigger example:
 
     mkdir my
     curl https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/ucsc1/mySeqs.fa -o my/mySeqs.fa
