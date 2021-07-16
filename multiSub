@@ -1086,8 +1086,8 @@ def metaToBiosample(meta):
 
             if fromField in metaDict:
                 sampleMeta[bioName] = metaDict[fromField]
-            elif bioName in cf:
-                sampleMeta[bioName] = cf[bioName]
+            elif fromField in cf:
+                sampleMeta[bioName] = cf[fromField]
             else:
                 if bioName in reqBiosFields:
                     errAbort("sequence %s: field %s is required for the biosample export, but it's not in the input meta "
