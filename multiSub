@@ -177,18 +177,28 @@ def parseArgs():
         init - write an empty config template to ~/.multiSub/config
         conv faFname tsvFname outDir - converts a fasta + tsv/csv/xls to files in outDir
         convDir inDir outDir - converts all fa/tsv/csv/xls files in inDir to outDir
-        up-ncbi outDir - upload the files genbank.zip/genbank.xml in outDir to NCBI
-        down-ncbi outDir - download NCBI status messages to outDir
+        up-biosample outDir - upload genbank.xml in outDir to NCBI Biosamples
+        up-genbank outDir - upload genbank.zip/genbank.xml in outDir to NCBI Genbank
+        down-biosample outDir - download NCBI status messages to outDir and parse accessions
+        down-genbank outDir - download NCBI status messages to outDir and parse accessions
         up-ena outDir - upload the file ena.xml+seqs in outDir to ENA, write receipt to outDir
         up-gisaid outDir - upload the files gisaid.* in outDir to GISAID
 
     Examples:
-        multiSub init
+        multiSub init - create ~/multiSub/config and fill with default values
         multiSub conv seqs.fa seqs.tsv mySub - convert fasta+tsv to all formats (ENA,NCBI,GISAID) in mySub/
+
+        multiSub convDir mySeqs mySub - convert all fasta/tsv/csv/xls to mySub in ENA format
+        multiSub up-biosample mySub - upload biosample.xml mySub to NCBI's FTP server as test submission
+        multiSub up-biosample mySub --prod - like above, but as a real submission
+        multiSub down-biosample mySub --prod - download submission results, parse accessions to biosampleAccs.tsv
+        multiSub convDir mySeqs mySub - convert again, now adding the biosample accessions
+        multiSub up-genbank mySub - upload to NCBI FTP as a Genbank test
+        multiSub down-genbank mySub - retrieve status reports to mySub/report.xml
+        multiSub up-genbank mySub --prod - upload to NCBI FTP as a real Genbank submission
+        multiSub down-genbank mySub --prod - download NCBI status files and create genbankAccs.tsv
+
         multiSub convDir mySeqs mySub -f ena - convert all fasta/tsv/csv/xls to mySub in ENA format
-        multiSub up-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as test submission
-        multiSub up-ncbi mySub --prod - upload NCBI files in mySub to NCBI's FTP server as final submission
-        multiSub down-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as final submission
         multiSub up-ena mySub --prod - upload ENA files in mySub to ENA server as final submission
         multiSub up-gisaid mySub - upload GISAID files in mySub to GISAID server as a final submission
     """)
@@ -200,7 +210,7 @@ def parseArgs():
         "identifier of sequences to remove. Can be the raw NCBI error report text file. These "
         "sequences and their annotations will be skipped during the convert step.")
     parser.add_option("-a", "--accs", dest="accFiles",
-        action="append", help="File with accessions. Can be in biosample tsv format. parsed fields are 'sample_name' and 'accession'. Can be used multiple times (e.g. to provide one GISAID file and also the Biosamples file)")
+        action="append", help="File with accessions. Can be in biosample tsv format. parsed fields are 'sample_name' or 'isolate' and 'accession'. Can be used multiple times (e.g. to provide one GISAID file and also the Biosamples file)")
     parser.add_option("-f", "--format", dest="format", action="store",
         default="all",
         help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
@@ -540,6 +550,8 @@ def parseTable(fname):
                     "or the opposite? " % (fname, repr(sep)))
 
             if headers is None:
+                if row[0].startswith("#"):
+                    row[0] = row[0].lstrip("#")
                 headers = row
             else:
                 if len(row)==0 or row[0]=="":
@@ -642,14 +654,14 @@ def addAccs(seqId, seqMeta, accs):
     """ accs is a dict with isolate or sequence ID -> list of accessions. Add these to seqMeta, is possible """
     seqAccs = []
     if seqMeta["isolate"] in accs:
-        seqAccs = accs[seqMeta["isolate"]]
-    elif seqId in accs:
-        seqAccs = accs[seqId]
+        seqAccs.extend(accs[seqMeta["isolate"]])
+    if seqId in accs:
+        seqAccs.extend(accs[seqId])
 
     for acc in seqAccs:
         if acc.startswith("EPI_"):
             seqMeta["gisaid_accession"] = acc
-        elif acc.startswith("SAMN"):
+        elif acc.startswith("SAM"): # SAME is ENA, SAMN is NCBI
             seqMeta["BioSample"] = acc
         else:
             assert(False) # accession format was not recognized
@@ -991,6 +1003,10 @@ def makeBiosampleSubXml(meta):
 
         xmls.append(s)
 
+        # the package is not an attribute itself, was just easier to write the above XML
+        del sampleMeta["attribute_package"]
+
+        # now output all the attributes
         for key, val in sampleMeta.items():
             xmls.append('<Attribute attribute_name="%s">%s</Attribute>\n' % (key, val))
 
@@ -1243,7 +1259,7 @@ def checkBoth(seqs, meta):
             continue
 
         if "-" in seq:
-            logging.warn("Sequence %s contains at least one dash character. Is this intentional?" % seqId)
+            logging.warning("Sequence %s contains at least one dash character. Is this intentional?" % seqId)
             #continue
 
         if " " in seqId:
@@ -1519,12 +1535,10 @@ def downNcbi(outDir, isProd, dbType):
 
     if len(outFnames)==0:
         logging.info("No NCBI job status files yet. Please wait some more, then retry.")
+        sys.exit(1)
     else:
         logging.info("Downloaded %d files into %s" % (len(outFnames), outDir))
     return outFnames
-
-
-
 
 def init():
     " download the config files into ~/.multiSub "
@@ -1564,7 +1578,11 @@ def readAccs(accFnames):
     for accFname in accFnames:
         headers, rows = parseTable(accFname)
         accIdx = headers.index("accession")
-        sampleIdx = headers.index("sample_name")
+        if "sample_name" in headers:
+            sampleIdx = headers.index("sample_name")
+        else:
+            sampleIdx = headers.index("isolate")
+
         for row in rows:
             acc = row[accIdx]
             sample = row[sampleIdx]
@@ -1585,8 +1603,11 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFil
     logging.info("Read %d sequences and %d annotation rows" % (len(seqs), len(meta)))
 
     accs = {}
-    if accFiles:
-        accs = readAccs(accFiles)
+    biosAccFname = join(outDir, "biosampleAccs.tsv")
+    if isfile(biosAccFname):
+        accFiles.append( biosAccFname )
+
+    accs = readAccs(accFiles)
 
     meta = metaTransform(meta, accs)
 
@@ -1658,7 +1679,7 @@ def getNcbiBatchId(dataDir):
     ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
     if not isfile(ncbiBatchFn):
         subDir = now()
-        ofh = io.open(ncbiBatchFn, "wb")
+        ofh = io.open(ncbiBatchFn, "wt")
         ofh.write(subDir)
         ofh.close()
         logging.info("Wrote NCBI FTP directory name '%s' (=batch name) to %s" % (subDir, ncbiBatchFn))
@@ -1668,7 +1689,42 @@ def getNcbiBatchId(dataDir):
         ifh.close()
         logging.info("Read NCBI FTP directory name (=batch name) from %s: %s" % (ncbiBatchFn, subDir))
 
-    return subDir
+    dirName = subDir.strip()
+    assert(len(dirName)!=0)
+    return dirName
+
+def parseNcbiReport(dataDir, targetDb, reqDb=None):
+    from xml.dom import minidom
+    if reqDb is None:
+        reqDb=targetDb
+    repFname = join(dataDir, targetDb+"-report.xml")
+    doc = minidom.parse(io.open(repFname))
+    objs = doc.getElementsByTagName("Object")
+    #<Object target_db="BioSample" object_id="20192715" status="new" last_update="2021-07-13T10:06:07.130" accession="SAMN20192715" spuid="SARS-CoV-2/human/USA/CA-UCSC-252/2021" spuid_namespace="ucsc-id">
+    accs = {}
+    for o in objs:
+        db = o.getAttribute("target_db")
+        if db.lower() != reqDb.lower():
+            errAbort("The database in %s is not the expected database '%s'" % (db, targetDb))
+        acc = o.getAttribute("accession")
+        spuid = o.getAttribute("spuid")
+        if acc=="":
+            continue
+        accs[spuid] = acc
+    logging.info("Found %d accessions in %s" % (len(accs), repFname))
+    return accs
+
+def writeAccessions(accs, dataDir, dbType):
+    " write dict to two-column tsv fname "
+    fname = join(dataDir, dbType+"Accs.tsv")
+    if len(accs)==0:
+        logging.warning("Got no accessions, not creating %s" % fname)
+        return
+    with io.open(fname, "wt") as ofh:
+        ofh.write("#isolate\taccession\n")
+        for key, val in accs.items():
+            ofh.write("%s\t%s\n" % (key, val))
+    logging.info("Wrote %d accessions to %s" % (len(accs), fname))
 
 def main():
     args, options = parseArgs()
@@ -1709,11 +1765,14 @@ def main():
     elif cmd=="down-biosample":
         dataDir = args[1]
         downNcbi(dataDir, isProd, "biosample")
-        parseAccs(dataDir, "biosample")
+        accs = parseNcbiReport(dataDir, "biosample")
+        writeAccessions(accs, dataDir, "biosample")
 
-    elif cmd=="down-genbank":
+    elif cmd=="down-genbank" or cmd=="down-ncbi":
         dataDir = args[1]
         downNcbi(dataDir, isProd, "genbank")
+        accs = parseNcbiReport(dataDir, "genbank", reqDb="nuccore")
+        writeAccessions(accs, dataDir, "genbank")
 
     elif cmd=="up-ena":
         dataDir = args[1]
@@ -1736,6 +1795,6 @@ def main():
         upGisaid(gisaidSeqFn, gisaidMetaFn, gisaidReportFn)
 
     else:
-        errAbort("Unknown command: %s. Must be one of conv, convDir, up-ena, up-gisaid, up-ncbi, down-ncbi" % cmd)
+        errAbort("Unknown command: %s. Must be one of conv, convDir, up-ena, up-gisaid, up-genbank, up-biosamples, down-biosample, down-genbank" % cmd)
 
 main()
