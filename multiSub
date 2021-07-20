@@ -468,8 +468,6 @@ def readMeta(fname):
 
 def readMetaText(fname):
     """ read csv/tsv table with sequence meta data and return as dict with 'seqId' -> OrderedDict of 'key':'value'
-    Current field names are: "collection_date" and "isolate".
-    Standardize field names to: date and isolate.
     """
     # GISAID files can also be in .csv format
     line1 = io.open(fname).readline().strip()
@@ -622,7 +620,7 @@ def writeFasta(seqs, ofh):
         ofh.write(u"\n")
         outCount += 1
 
-    if "name" in dir(ofh):
+    if "name" in dir(ofh): # ofh can be a memory-backed pseudo file, those don't have names
         logging.info("Wrote %d sequences to %s" % (outCount, ofh.name))
 
 def writeMetaTsv(meta, ofh):
@@ -1003,12 +1001,13 @@ def makeBiosampleSubXml(meta):
 
         xmls.append(s)
 
-        # the package is not an attribute itself, was just easier to write the above XML
-        del sampleMeta["attribute_package"]
-
         # now output all the attributes
         for key, val in sampleMeta.items():
-            xmls.append('<Attribute attribute_name="%s">%s</Attribute>\n' % (key, val))
+            # Biosample complained via email from Vincent Calhoun that I should not submit these
+            # attributes again, so remove them here. It does not trigger an error or a warning
+            # but they don't like it
+            if not key in ["sample_name", "bioproject_accession", "attribute_package", "organism"]:
+                xmls.append('<Attribute attribute_name="%s">%s</Attribute>\n' % (key, val))
 
         s = """</Attributes>
       </BioSample>
@@ -1698,20 +1697,46 @@ def parseNcbiReport(dataDir, targetDb, reqDb=None):
     if reqDb is None:
         reqDb=targetDb
     repFname = join(dataDir, targetDb+"-report.xml")
+    xmlText = io.open(repFname, "rt").read()
+    logging.info("Parsing NCBI XML Pipeline report %s" % repFname)
+    if not 'status="processed-ok"' in xmlText:
+        errAbort('The NCBI XML report %s does not contain the string status="processed-ok". This could be '
+        ' due to an error or because the entire input has not been processed yet. '
+        ' Please check the file %s and possibly re-run the download command. ' % repFname)
     doc = minidom.parse(io.open(repFname))
-    objs = doc.getElementsByTagName("Object")
-    #<Object target_db="BioSample" object_id="20192715" status="new" last_update="2021-07-13T10:06:07.130" accession="SAMN20192715" spuid="SARS-CoV-2/human/USA/CA-UCSC-252/2021" spuid_namespace="ucsc-id">
     accs = {}
-    for o in objs:
-        db = o.getAttribute("target_db")
-        if db.lower() != reqDb.lower():
-            errAbort("The database in %s is not the expected database '%s'" % (db, targetDb))
-        acc = o.getAttribute("accession")
-        spuid = o.getAttribute("spuid")
-        if acc=="":
-            continue
-        accs[spuid] = acc
-    logging.info("Found %d accessions in %s" % (len(accs), repFname))
+    if targetDb == "biosample":
+        objs = doc.getElementsByTagName("Object")
+        #<Object target_db="BioSample" object_id="20192715" status="new" last_update="2021-07-13T10:06:07.130" accession="SAMN20192715" spuid="SARS-CoV-2/human/USA/CA-UCSC-252/2021" spuid_namespace="ucsc-id">
+        for o in objs:
+            db = o.getAttribute("target_db")
+            if db.lower() != reqDb.lower():
+                errAbort("The database in %s is not the expected database '%s'" % (db, targetDb))
+            acc = o.getAttribute("accession")
+            spuid = o.getAttribute("spuid")
+            if acc=="":
+                continue
+            accs[spuid] = acc
+        logging.info("Found %d accessions in %s" % (len(accs), repFname))
+    elif targetDb=="genbank":
+        # <File file_id="hcdoudov/accessionreport.tsv" file_path="AccessionReport.tsv"/>
+        objs = doc.getElementsByTagName("File")
+        for o in objs:
+            fileId = o.getAttribute("file_id")
+            filePath = o.getAttribute("file_path")
+            fullPath = join(dataDir, filePath)
+            url = join('https://submit.ncbi.nlm.nih.gov/api/2.0/files/%s/?format=attachment' % fileId)
+            httpDownload(url, fullPath)
+
+            if filePath=="AccessionReport.tsv":
+                headers, rows = parseTable(fullPath)
+                # #Accession      Sequence ID     Release Date
+                # MZ569991        hCoV-19/USA/CA-UCSC-537/2020    immediate
+                accIdx = headers.index("Accession")
+                seqIdIdx = headers.index("Sequence ID")
+                for row in rows:
+                    accs[row[seqIdIdx]] = row[accIdx]
+
     return accs
 
 def writeAccessions(accs, dataDir, dbType):
@@ -1720,11 +1745,40 @@ def writeAccessions(accs, dataDir, dbType):
     if len(accs)==0:
         logging.warning("Got no accessions, not creating %s" % fname)
         return
+
+    metaFname = join(dataDir, "meta.tsv")
+    meta = readMetaText(metaFname)
+
+    writeCount = 0
+    notFound = list()
     with io.open(fname, "wt") as ofh:
-        ofh.write("#isolate\taccession\n")
-        for key, val in accs.items():
-            ofh.write("%s\t%s\n" % (key, val))
-    logging.info("Wrote %d accessions to %s" % (len(accs), fname))
+        ofh.write("#seqId\tisolate\taccession\n")
+        for seqId, seqMeta in meta.items():
+            # biosample does not have the concept of sequence identifier: use the isolates
+            if dbType=="biosample":
+                inId = seqMeta["isolate"]
+            elif dbType=="genbank":
+                inId = seqId
+
+            if inId in accs:
+                acc = accs[inId]
+                ofh.write("%s\t%s\t%s\n" % (seqId, seqMeta["isolate"], acc))
+                writeCount +=1
+            else:
+                notFound.append(seqId)
+
+    logging.info("Got %d accessions. Wrote %d accessions to %s" % (len(accs), writeCount, fname))
+    if len(notFound)!=0:
+        logging.warning("These seqIds got no accession (=rejected): %s" % repr(notFound))
+        faFname = join(dataDir, "seqs.fa")
+        errFname = join(dataDir, dbType+"-rejected.fa")
+        notFound = set(notFound)
+        notFoundSeqs = []
+        for seqId, seq in parseFasta(faFname):
+            if seqId in notFound:
+                notFoundSeqs.append( (seqId, seq) )
+        notFoundOfh = io.open(errFname, "wt")
+        writeFasta(notFoundSeqs, notFoundOfh)
 
 def main():
     args, options = parseArgs()
