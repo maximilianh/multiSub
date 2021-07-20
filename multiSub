@@ -974,7 +974,7 @@ def makeBiosampleSubXml(meta):
         if not "attribute_package" in sampleMeta:
             sampleMeta["attribute_package"] = cf["attribute_package"]
         if not "bioproject_accession" in sampleMeta:
-            sampleMeta["bioproject_accession"] = "PRNXXXX" # this is just so we can generate the file without a config file
+            sampleMeta["bioproject_accession"] = "" # this is just so we can generate the file without a config file
 
         s = """
 <Action>
