@@ -20,10 +20,13 @@ test-bulk1: mkdir
 	mkdir -p bulk1
 	rm -f bulk1/*.fa bulk1/*.tsv
 	cp gisaid1/* ucsc1/* bulk1
-	../multiSub convDir bulk1 out/bulk1/
+	../multiSub convDir bulk1 out/bulk1/ -a bulk1/gisaidAccs.tsv
 
 test-csv-gisaid: mkdir
 	../multiSub conv out/ucsc1/gisaid.fa out/ucsc1/gisaid.csv out/csv-gisaid
+
+test-combine: mkdir
+	../multiSub conv ucsc1/mySeqs.fa ucsc1/mySeqs.tsv combine/mySeqsFnames.tsv out/combine/
 
 test-kelsey: mkdir
 	../multiSub conv kelsey/test.fa kelsey/test.csv out/kelsey

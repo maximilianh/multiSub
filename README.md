@@ -139,19 +139,36 @@ files for NCBI and GISAID into mySub/:
     ./multiSub convDir mySeqs mySub -f ncbi,gisaid
 
 
-## Legal meta annotation table field names (columns) and what happens to their data
+## Possible meta annotation table field names (columns) and what happens to their data
 
 There are four types of possible field names for the meta data:
 
-1) the minimal ones: "isolate", "date" and "location"
+1) the minimal ones: "isolate", "date" (alias "collection_date") and "location" (alias "country")
 2) the following GISAID field names: covv_collection_date, covv_virus_name, covv_location, covv_assembly_method, covv_coverage, covv_seq_technology
-3) NCBI source tags, listed here: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html
+3) NCBI source tags, listed here: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html, most importantly isolate, collection_date and country (misnomer, it usually includes region and town)
 4) the NCBI Structured comment field names: "Assembly Name", "Assembly Method", "Genome Coverage", "Sequencing Technology", see: https://www.ncbi.nlm.nih.gov/genbank/structuredcomment
 
-You can also rename any of your own input fields with other names but similar content to the NCBI names using the name mapping table in the configuration statement "metaFieldMap". See the sample config file https://hgwdev.gi.ucsc.edu/~max/multiSub/config
+You can also rename any of your own input fields with other names but similar
+content to the NCBI names using the name mapping table in the configuration
+statement "metaFieldMap". See the sample config file config.sample in this repository.
 
-## Submission as a manual NCBI upload
+## Submission of the sample attributes as a manual NCBI Biosample upload
 
+Biosample is a database that connects reads and assemblies and contains a couple of key-value entries, 
+like sequencing coverage, the instrument or even the vaccination status. The list of all possible keys
+for SARS-CoV-2 is here: https://www.ncbi.nlm.nih.gov/biosample/docs/packages/SARS-CoV-2.cl.1.0/
+A Biosample is only needed if you want to upload the raw FASTQ reads later.
+
+Go to https://submit.ncbi.nlm.nih.gov, create a new Biosamples submission
+and when prompted, upload the biosample.tsv file. 
+Just click the "Continue" buttons until you are down. You should get 
+the table with the accessions by email. Download this table into the output directory as 
+biosampleAccs.tsv. The next "conv" run will then add these accessions to the
+various files as cross-references.
+
+## Submission of the consensus assembly as a manual NCBI Genbank upload
+
+This is the most important database for public health purposes. 
 Go to https://submit.ncbi.nlm.nih.gov/subs/genbank/, create a new submission
 and when prompted, upload the ncbiSeqsAndSource.fa file. The file contains both
 the sequences and the source tags, so you should not have to do anything else,
@@ -172,7 +189,7 @@ Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-sequenceChoice-start.
 
 TODO.
 
-## Submission as automated Genbank uploads
+## Submission as automated NCBI uploads
 
 Request an FTP username and password from gb-admin@ncbi.nlm.nih.gov
 
