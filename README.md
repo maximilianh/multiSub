@@ -22,6 +22,17 @@ the country, checks the date format and adds sequence IDs where needed. It does
 not support more than the date and isolate and country fields, but other fields
 can be easily added, just email examples to maxh@ucsc.edu.
 
+There is really only a single table and a single fasta file needed. The different export steps
+will pick out of the meta data table what they need. E.g. the field "Genome
+Coverage" will be exported by the NCBI Genbank step into a "structured-comment"
+field "Genome Coverage", and will also end up in the ENA fields "coverage" and
+GISAID's "covv_coverage". The meta table field names should
+either follow NCBI standards or be a GISAID file. As a matter of fact, there is 
+an order to the steps: you first need to upload to NCBI Biosamples to obtain
+Biosamples accessions, then you re-convert to add these IDs to the files, then
+you can upload the new files to Genbank or SRA, with the Biosamples accessions
+in them. The examples below should make this clear.
+
 Many thanks to Stephan Fuchs and Kyanoush Yahosseini, Robert Koch Institut,
 Berlin, for sending me their Python ENA uploader code, from which I copied. Also
 thanks to the ENA Helpdesk and the NCBI Helpdesk for their quick replies.
@@ -47,23 +58,23 @@ And run it:
 
     ./multiSub --help
 
-Or on Windows (install Python from https://www.microsoft.com/en-us/p/python-38/9mssztt1n39l):
+Or run it on Windows (install Python first from https://www.microsoft.com/en-us/p/python-38/9mssztt1n39l):
 
     python multiSub
 
 The script was tested on Python 2.7 and 3.6. If you do not plan to read GISAID xls files,
 you do not need to install anything else.
 
-If you want to read GISAID xls files, the
-script needs the xlrd Python package. You can install xlrd with "pip install
-xlrd" or, if you are not administrator, with "pip install xlrd --user".  If you
-use Mac OSX and do not have pip installed yet, run the command "curl
-https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py"
+If you want to read GISAID xls files, the script needs the xlrd Python package.
+You can install xlrd with "pip install xlrd" or, if you are not administrator,
+with "pip install xlrd --user".  If you use Mac OSX and do not have pip
+installed yet, run the command "curl https://bootstrap.pypa.io/get-pip.py -o
+get-pip.py && python3 get-pip.py"
 
 Using Microsoft Windows ? Little command line experience? Please contact me at
 maxh@ucsc.edu. The script runs on Windows, if you install Python from the
 Microsoft Store. I can also provide a normal Windows .exe version.
-Also, a drag-and-drop file box could be added for Windows.
+Also, a drag-and-drop file box could be added for Windows GUI use.
 
 ## Input 
 
@@ -89,8 +100,8 @@ subset, use the -f option and list the formats that you need:
 - "ncbi" - for manual Genbank upload, as a single fasta file with integrated tags: genbank.seqAndSource.fa
   For manual sequence upload on https://submit.ncbi.nlm.nih.gov/sarscov2/
 - "ncbi-ftp" - for automated Genbank upload: genbankFtp.zip + submission.xml. See below for details.
-- "gisaid" - for GISAID upload in .csv format: gisaid.csv and gisaid.fa
-- "ena" - for ENA automated sample uploads in XML format: ena.xml
+- "gisaid" - for GISAID batch or API upload in .csv format: gisaid.csv and gisaid.fa
+- "ena" - for ENA automated API sample uploads in XML format: ena.xml
 
 ## Configuration
 
@@ -131,7 +142,7 @@ Here is a bigger example:
 
     ./multiSub conv my/mySeqs.fa my/mySeqs.tsv mySub
 
-A copy of the output files is here: https://genome-test.gi.ucsc.edu/~max/multiSub/out/ucsc1/
+A full copy of the output files is here: https://genome-test.gi.ucsc.edu/~max/multiSub/out/ucsc1/
 
 Read all sequences and all annotation files (csv, tsv, xls) from mySeqs/ and write
 files for NCBI and GISAID into mySub/:
@@ -154,12 +165,12 @@ statement "metaFieldMap". See the sample config file config.sample in this repos
 
 ## Submission of the sample attributes as a manual NCBI Biosample upload
 
-Biosample is a database that connects reads and assemblies and contains a couple of key-value entries, 
+NCBI Biosample is a database that connects reads and assemblies and contains a couple of key-value entries, 
 like sequencing coverage, the instrument or even the vaccination status. The list of all possible keys
 for SARS-CoV-2 is here: https://www.ncbi.nlm.nih.gov/biosample/docs/packages/SARS-CoV-2.cl.1.0/
-A Biosample is only needed if you want to upload the raw FASTQ reads later.
+A Biosample accession is only required if you want to upload the raw FASTQ reads later to the SRA.
 
-Go to https://submit.ncbi.nlm.nih.gov, create a new Biosamples submission
+For interactive uploads, go to https://submit.ncbi.nlm.nih.gov, create a new Biosamples submission
 and when prompted, upload the biosample.tsv file. 
 Just click the "Continue" buttons until you are down. You should get 
 the table with the accessions by email. Download this table into the output directory as 
@@ -170,9 +181,10 @@ various files as cross-references.
 
 This is the most important database for public health purposes. 
 Go to https://submit.ncbi.nlm.nih.gov/subs/genbank/, create a new submission
-and when prompted, upload the ncbiSeqsAndSource.fa file. The file contains both
-the sequences and the source tags, so you should not have to do anything else,
-just click the "Continue" buttons a few times in the assistant.
+and when prompted, upload the ncbiSeqsAndSource.fa file. The multiSub fasta
+file contains both the sequences and the source tags (meta data), so you should
+not have to do anything else, just click the "Continue" buttons a few times in
+the assistant.
 
 Check the box "ignore errors" on the NCBI website, so you don't have to worry
 about sequences that NCBI thinks are invalid, these will simply be skipped. 
@@ -187,7 +199,7 @@ upload again. But the skip checkbox is easier.
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-sequenceChoice-start.
 
-TODO.
+TODO: Is this actually possible to do interactively ? Need more help from ENA.
 
 ## Submission as automated NCBI uploads
 
@@ -210,7 +222,7 @@ Upload sequences in mySub/ to the NCBI FTP server as a test submission:
     ./multiSub up-genbank mySub
     
 Wait for a few hours. Retrieve the status and accessions of your submission
-and write them to the file mySub/ncbiReport.xml
+and write them to the file mySub/ncbiReport.xml:
 
     ./multiSub down-ncbi mySub
     
@@ -222,13 +234,16 @@ Download the report:
 
     ./multiSub down-genbank mySub --prod
 
+The sequence accessions should be in mySub/genbankAccs.tsv
+
 ## Submission as automated ENA uploads
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#home to create an account.
-Paste your new username and password into ~/.multiSub/config under enaUser and enaPass.
+Paste your new username and password into ~/.multiSub/config under enaUser and enaPass
+(see above under NCBI Genbank how to create this file).
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-studyChoice-start, create a study
-aka project and paste its identifier into ~/.multiSub/config under enaProj (it starts with "PRJEB").
+aka project and paste its identifier into ~/.multiSub/config under enaProj (it starts with "PRJEB", include this prefix).
 
 Then, convert your submission files to the ENA XML format:
 
@@ -247,14 +262,15 @@ and a parsed tsv table with the accessions and your internal identifiers in mySu
 
 The sequence upload is rather slow, every sequence takes a few seconds. Split the input
 files into chunks and run the script in parallel if you have several thousand sequences
-Please contact me if this sentence is unclear or if have trouble with the upload.
+Please contact me if this sentence is unclear or if you have trouble with the upload.
 
 If your sequence or sample uploads fail somewhere within a batch and you change
 the meta data or sequences, note that some of them may have been uploaded
-already. To force a re-upload of everything, use the --prefix option. If the
-error happened on the production server, not in testing mode, it may be best to
-read the ENA API documentation on how to reset your upload (look at the receipt XML)
-or contact the ENA helpdesk or me. 
+already. But the upload alias can be used only once. To allow a re-upload of
+everything, use the --prefix option, which will add a custom prefix to all
+aliases. If the error happened on the production server, not in testing mode,
+it may be best to read the ENA API documentation on how to reset your upload
+(look at the receipt XML) or contact the ENA helpdesk or me. 
 
 ## Submission as automated GISAID uploads
 
@@ -265,23 +281,25 @@ Convert your data, it will automatically create files in the format for GISAID:
 
     ./multiSub conv seqs.fa seqs.tsv mySub
 
-Start the upload (it will automatically get the GISAID upload client into ~/.multiSub):
+Try to start the upload (it will automatically get the GISAID upload client into ~/.multiSub):
 
     ./multiSub up-gisaid mySub
 
-This will fail on the first run, because you need to authenticate first, so let's do this now:
+This will fail on the first run, because you need to authenticate first, so let's authenticate now:
 
     python3 ~/.multiSub/gisaid-uploader CoV authenticate --cid TEST-EA76875B00C3
 
 The GISAID uploader will ask you for your GISAID username and password. If you don't have one yet, create one on gisaid.org.
 When this command is successful, note that a new file in the current working directory was created, "gisaid_uploader.authtoken".
-The upload will work for the next 100 days from this working directory.
+The up-gisaid will work without authentication for the next 100 days from this working directory.
 
 Now run the upload:
 
     ./multiSub up-gisaid mySub
 
-With the token TEST-EA76875B00C3, data will never be processed or released. GISAID upload error messages are written to mySub/gisaidFail.csv
+With the token TEST-EA76875B00C3, data will never be processed or released.
+Rejected sequences with GISAID upload errors are written to
+mySub/gisaidFail.txt.
 
 ## Unusual cases
 

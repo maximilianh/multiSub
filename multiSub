@@ -1465,7 +1465,8 @@ def makeEnaSubmitXml():
 def makeEnaAlias(prefix, seqMeta):
     " make a valid seq alias from the meta data dict "
     # bug in ENA API: alias cannot contain slashes
-    alias = prefix+seqMeta["isolate"].replace("/", "").replace("-", "")
+    #alias = prefix+seqMeta["isolate"].replace("/", "").replace("-", "")
+    alias = prefix+seqMeta["isolate"]
     return alias
 
 def writeEnaXml(meta, ofh, prefix):
@@ -1928,7 +1929,7 @@ def main():
         outDir = args[1]
         gisaidSeqFn = join(outDir, "gisaid.fa")
         gisaidMetaFn = join(outDir, "gisaid.csv")
-        gisaidReportFn = join(outDir, "gisaidReport.txt")
+        gisaidReportFn = join(outDir, "gisaidFail.txt")
         upGisaid(gisaidSeqFn, gisaidMetaFn, gisaidReportFn)
 
     else:
