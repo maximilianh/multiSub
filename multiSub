@@ -123,7 +123,7 @@ config = {
 }
 
 # the first line of all GISAID csv files, from the GISAID docs
-GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
+GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
 # alternative format, also seen in the wild
 GISAIDHEADERS2 = GISAIDHEADERS+",covv_comment,comment_type"
 
@@ -1740,8 +1740,11 @@ def runCmd(cmd):
 def upGisaid(faFname, csvFname, failFname):
     " upload files to GISAID via their interface "
     scriptFname = getConfigFname("gisaid-uploader")
-    # for some reason, native Python https is blocked on this webserver, but curl works.
-    runCmd(["curl", "https://www.epicov.org/content/gisaid_uploader", "-o", scriptFname])
+    if not isfile(scriptFname):
+        # for some reason, native Python https is blocked on this webserver, but curl works.
+        runCmd(["curl", "https://www.epicov.org/content/gisaid_uploader", "-o", scriptFname])
+    else:
+        logging.info("File %s already exists, not downloading again from epicov.org" % scriptFname)
 
     cmd = ["python3", scriptFname, "CoV", "upload", "--fasta", faFname, "--csv", csvFname,
         "--failedout", failFname]
@@ -1918,8 +1921,9 @@ def main():
         upEna(xmlFname, seqFname, metaFname, seqLog, sampleLog, accLog, prefix, options.prod)
 
     #elif cmd=="down-ena":
-        # need to resolve ENA accessions to INSDC accessions
-        # https://www.ebi.ac.uk/ena/xref/rest/tsv/search?source=Analysis&target=sequence&source_accession=ERZ2775457
+        # TODO: need to resolve ENA accessions to INSDC accessions, see email from ENA helpdesk
+        # Use this API URL: https://www.ebi.ac.uk/ena/xref/rest/tsv/search?source=Analysis&target=sequence&source_accession=ERZ2775457
+
     elif cmd=="up-gisaid":
         outDir = args[1]
         gisaidSeqFn = join(outDir, "gisaid.fa")

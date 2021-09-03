@@ -258,27 +258,30 @@ or contact the ENA helpdesk or me.
 
 ## Submission as automated GISAID uploads
 
-NOTE: I was unable to test this, because GISAID will not send me an upload token. It should
-work though. Please contact me if you were able to test it or would share a token for testing.
+Email CLIsupport@gisaid.org and request an upload token. For testing, use the
+token "TEST-EA76875B00C3".
 
-Email CLIsupport@gisaid.org and request an upload token.
-
-Download the file https://www.epicov.org/content/gisaid_uploader into the same directory where 
-multiSub is located or in some directory in your PATH.
-
-Run 
-
-   ./gisaid_uploader CoV authenticate --cid YOURUPLOADTOKEN
-
-Convert your data:
+Convert your data, it will automatically create files in the format for GISAID:
 
     ./multiSub conv seqs.fa seqs.tsv mySub
 
-And upload it:
+Start the upload (it will automatically get the GISAID upload client into ~/.multiSub):
 
     ./multiSub up-gisaid mySub
 
-GISAID upload error messages are written to mySub/gisaidFail.csv
+This will fail on the first run, because you need to authenticate first, so let's do this now:
+
+    python3 ~/.multiSub/gisaid-uploader CoV authenticate --cid TEST-EA76875B00C3
+
+The GISAID uploader will ask you for your GISAID username and password. If you don't have one yet, create one on gisaid.org.
+When this command is successful, note that a new file in the current working directory was created, "gisaid_uploader.authtoken".
+The upload will work for the next 100 days from this working directory.
+
+Now run the upload:
+
+    ./multiSub up-gisaid mySub
+
+With the token TEST-EA76875B00C3, data will never be processed or released. GISAID upload error messages are written to mySub/gisaidFail.csv
 
 ## Unusual cases
 
