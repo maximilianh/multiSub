@@ -195,6 +195,8 @@ provide it via --skipFile to "multiSub conv".  Any sequences with errors will
 then be skipped. This will create a new ncbiSeqsAndSource.fa file which you can
 upload again. But the skip checkbox is easier.
 
+Getting rejected is always difficult. See this page https://github.com/czbiohub/covidtracker_notes/tree/main/submission_to_public_repo with notes on how to deal with rejection by NCBI.
+
 ## Submission as manual ENA uploads
 
 Go to https://www.ebi.ac.uk/ena/submit/sra/#newSubmission-sequenceChoice-start.
@@ -281,7 +283,7 @@ Convert your data, it will automatically create files in the format for GISAID:
 
     ./multiSub conv seqs.fa seqs.tsv mySub
 
-Try to start the upload (it will automatically get the GISAID upload client into ~/.multiSub):
+Then, try to start the upload (it will automatically get the GISAID upload client into ~/.multiSub):
 
     ./multiSub up-gisaid mySub
 
@@ -300,6 +302,8 @@ Now run the upload:
 With the token TEST-EA76875B00C3, data will never be processed or released.
 Rejected sequences with GISAID upload errors are written to
 mySub/gisaidFail.txt.
+
+Note this page with how to deal with rejections: https://github.com/czbiohub/covidtracker_notes/tree/main/submission_to_public_repo
 
 ## Unusual cases
 
