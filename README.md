@@ -123,6 +123,7 @@ The absolutely minimal example:
     ./multiSub conv seq.fa meta.csv mini/
 
 Or on Windows:
+
     curl -O https://github.com/maximilianh/multiSub/blob/main/tests/mini/seqs.fa
     curl -O https://raw.githubusercontent.com/maximilianh/multiSub/main/tests/mini/meta.csv 
     python multiSub conv seqs.fa meta.csv mini/
