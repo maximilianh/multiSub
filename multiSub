@@ -16,7 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 # Written by Maximilian Haeussler, maxh@ucsc.edu, with a lot of input from
-# Kyanoush Yahosseini, RKI, for the ENA API uploader
+# Kyanoush Yahosseini, RKI, for the ENA API uploader and Danny Park, Broad for the 
+# NCBI uploaders
 
 import logging, sys, optparse, os, io, json, csv, zipfile, textwrap, subprocess
 from collections import defaultdict, OrderedDict
@@ -30,7 +31,7 @@ from io import StringIO # python2.6 and 3
 isPy2 = (sys.version_info.major == 2)
 
 # all possible values for the --format option
-allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena"]
+allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena", "biosample", "sra"]
 
 # when importing csv/tsv/xls files, use the following translation table to our internal annotation format
 # I use NCBI's source tag definition for now for the internal storage
@@ -68,8 +69,18 @@ config = {
     # please do not change these values here, run "multiSub init" and change the values in 
     # ~/.multiSub/config
 
-    # bogus values:
-    # overwritten by ~/.multiSub/config, these bogus values are only there so the script can run 
+    # default NCBI biosamples attributes
+    "host" : "Homo sapiens",
+    "host_disease" : "COVID-19",
+    #"attribute_package" : "Pathogen.cl", # not optimal, as it requires lat_lon, now they have a better package
+    "attribute_package" : "SARS-CoV-2.cl.1.0",
+    "organism" : "Severe acute respiratory syndrome coronavirus 2",
+    # dummy values, please please run "multiSub init" and replace in ~/.multiSub/config 
+    "collected_by" : "UCSC Molecular Diagnostics Lab",
+    "isolation_source" : "unknown",
+    # file generation does not trigger an error.
+
+    # overwritten by ~/.multiSub/config, these ENA dummy values are only there so the script can run 
     # without a config file
     "enaCenter" : "UCSC Genomics Institute",
     "enaCollector" : "UCSC Medical Diagnostics Lab",
@@ -112,7 +123,7 @@ config = {
 }
 
 # the first line of all GISAID csv files, from the GISAID docs
-GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab ,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
+GISAIDHEADERS = u"submitter,fn,covv_virus_name,covv_type,covv_passage,covv_collection_date,covv_location,covv_add_location,covv_host,covv_add_host_info,covv_gender,covv_patient_age,covv_patient_status,covv_specimen,covv_outbreak,covv_last_vaccinated,covv_treatment,covv_seq_technology,covv_assembly_method,covv_coverage,covv_orig_lab,covv_orig_lab_addr,covv_provider_sample_id,covv_subm_lab,covv_subm_lab_addr,covv_subm_sample_id,covv_authors"
 # alternative format, also seen in the wild
 GISAIDHEADERS2 = GISAIDHEADERS+",covv_comment,comment_type"
 
@@ -122,10 +133,28 @@ allSourceTags = set("isolate,strain,specimen_voucher,bio_material,biotype,cell_l
 # all possible NCBI structured comments tags
 commentTags = set(["Assembly Name", "Assembly Method", "Genome Coverage", "Sequencing Technology"])
 
+# required biosample fields
+reqBiosFields = ["organism", "collected_by", "collection_date", "geo_loc_name", "host",
+"host_disease", "isolate", "isolation_source"]
+
+# all possible biosample fields
+# copied from the template that you can download when submitting a biosample as a bulk .tsv file
+# first field is always "sample_name"
+allBioFields ="sample_title","bioproject_accession","organism","collected_by","collection_date","geo_loc_name","host","host_disease","isolate","isolation_source","antiviral_treatment_agent","collection_device","collection_method","date_of_prior_antiviral_treat","date_of_prior_sars_cov_2_infection","date_of_sars_cov_2_vaccination","exposure_event","geo_loc_exposure","gisaid_accession","gisaid_virus_name","host_age","host_anatomical_material","host_anatomical_part","host_body_product","host_disease_outcome","host_health_state","host_recent_travel_loc","host_recent_travel_return_date","host_sex","host_specimen_voucher","host_subject_id","lat_lon","passage_method","passage_number","prior_sars_cov_2_antiviral_treat","prior_sars_cov_2_infection","prior_sars_cov_2_vaccination","purpose_of_sampling","purpose_of_sequencing","sars_cov_2_diag_gene_name_1","sars_cov_2_diag_gene_name_2","sars_cov_2_diag_pcr_ct_value_1","sars_cov_2_diag_pcr_ct_value_2","sequenced_by","vaccine_received","virus_isolate_of_prior_infection","description"
+
+# all required SRA fields
+# from ftp://ftp-trace.ncbi.nlm.nih.gov/sra/metadata_table/SRA_metadata_acc.tsv
+# and from https://www.ncbi.nlm.nih.gov/core/assets/sra/files/SRA_metadata_SP.xlsx
+# also here: https://github.com/benjaminhgood/LTEE-metagenomic/blob/master/generate_sra_metadata.py
+# any other fields can be added. They appear under "run" (says above .tsv)
+# in addition to these, any fields filename, filename2, filename3, filename4, etc can be added
+# at least 'filename' has to be defined and not empty
+sraFields = ["bioproject_accession", "biosample_accession", "library_ID", "title", "library_strategy", "library_source", "library_selection", "library_layout", "platform", "instrument_model", "design_description", "filetype"]
+
 configDone = False
 
 # URL to download the 'init' config file
-homeUrl = "https://hgwdev.gi.ucsc.edu/~max/multiSub"
+configUrl = "https://raw.githubusercontent.com/maximilianh/multiSub/main/config.sample"
 
 def getConfigFname(fname):
     " return full path to file in config dir "
@@ -151,7 +180,6 @@ def getConfig():
             metaFieldMap.update(config["metaFieldMap"])
     return config
 
-
 # ==== functions =====
 def parseArgs():
     " setup logging, parse command line arguments and options. -h shows auto-generated help page "
@@ -160,18 +188,28 @@ def parseArgs():
         init - write an empty config template to ~/.multiSub/config
         conv faFname tsvFname outDir - converts a fasta + tsv/csv/xls to files in outDir
         convDir inDir outDir - converts all fa/tsv/csv/xls files in inDir to outDir
-        up-ncbi outDir - upload the files ncbiFtp.zip/submission.xml in outDir to NCBI
-        down-ncbi outDir - download NCBI status messages to outDir
+        up-biosample outDir - upload genbank.xml in outDir to NCBI Biosamples
+        up-genbank outDir - upload genbank.zip/genbank.xml in outDir to NCBI Genbank
+        down-biosample outDir - download NCBI status messages to outDir and parse accessions
+        down-genbank outDir - download NCBI status messages to outDir and parse accessions
         up-ena outDir - upload the file ena.xml+seqs in outDir to ENA, write receipt to outDir
         up-gisaid outDir - upload the files gisaid.* in outDir to GISAID
 
     Examples:
-        multiSub init
+        multiSub init - create ~/multiSub/config and fill with default values
         multiSub conv seqs.fa seqs.tsv mySub - convert fasta+tsv to all formats (ENA,NCBI,GISAID) in mySub/
+
+        multiSub convDir mySeqs mySub - convert all fasta/tsv/csv/xls to mySub in ENA format
+        multiSub up-biosample mySub - upload biosample.xml mySub to NCBI's FTP server as test submission
+        multiSub up-biosample mySub --prod - like above, but as a real submission
+        multiSub down-biosample mySub --prod - download submission results, parse accessions to biosampleAccs.tsv
+        multiSub convDir mySeqs mySub - convert again, now adding the biosample accessions
+        multiSub up-genbank mySub - upload to NCBI FTP as a Genbank test
+        multiSub down-genbank mySub - retrieve status reports to mySub/report.xml
+        multiSub up-genbank mySub --prod - upload to NCBI FTP as a real Genbank submission
+        multiSub down-genbank mySub --prod - download NCBI status files and create genbankAccs.tsv
+
         multiSub convDir mySeqs mySub -f ena - convert all fasta/tsv/csv/xls to mySub in ENA format
-        multiSub up-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as test submission
-        multiSub up-ncbi mySub --prod - upload NCBI files in mySub to NCBI's FTP server as final submission
-        multiSub down-ncbi mySub - upload NCBI files in mySub to NCBI's FTP server as final submission
         multiSub up-ena mySub --prod - upload ENA files in mySub to ENA server as final submission
         multiSub up-gisaid mySub - upload GISAID files in mySub to GISAID server as a final submission
     """)
@@ -182,6 +220,8 @@ def parseArgs():
         action="store", help="file with at least one column with the sequence "
         "identifier of sequences to remove. Can be the raw NCBI error report text file. These "
         "sequences and their annotations will be skipped during the convert step.")
+    parser.add_option("-a", "--accs", dest="accFiles",
+        action="append", help="File with accessions. Can be in biosample tsv format. parsed fields are 'sample_name' or 'isolate' and 'accession'. Can be used multiple times (e.g. to provide one GISAID file and also the Biosamples file)")
     parser.add_option("-f", "--format", dest="format", action="store",
         default="all",
         help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
@@ -262,7 +302,7 @@ def parseFasta(fname):
   doneIds = set()
 
   for line in ifh:
-          line = line.rstrip("\n\r")
+          line = line.rstrip("\r\n")
           if line=="" or line.startswith("#"):
               continue
           elif not line.startswith(">"):
@@ -391,6 +431,10 @@ def errAbort(msg):
 
 def checkDate(dateStr):
     " throw error is date is not in format 2020-03-30 "
+    if "-" not in dateStr:
+        logging.warn("Found date '%s'. This is an accepted date for GISAID, but not for all other databases. Please consider updating your input files with proper dates. For public health purposes having at least the month is crucial. This script will set the date to June 1st of the same year now, but please fix the input data rather than creating incorrect dates." % dateStr)
+        dateStr = dateStr+"-06-01"
+
     year, month, day = dateStr.split("-")
     year = int(year.strip())
     month = int(month.strip())
@@ -435,8 +479,6 @@ def readMeta(fname):
 
 def readMetaText(fname):
     """ read csv/tsv table with sequence meta data and return as dict with 'seqId' -> OrderedDict of 'key':'value'
-    Current field names are: "collection_date" and "isolate".
-    Standardize field names to: date and isolate.
     """
     # GISAID files can also be in .csv format
     line1 = io.open(fname).readline().strip()
@@ -464,8 +506,10 @@ def readMetaText(fname):
                 d[key] = val
 
         seqId = row[0]
+        if seqId in meta:
+            logging.warn("sequence ID '%s' has been seen before. Only read first row." % seqId)
+            continue
         meta[seqId] = d
-
 
     return meta
 
@@ -517,6 +561,8 @@ def parseTable(fname):
                     "or the opposite? " % (fname, repr(sep)))
 
             if headers is None:
+                if row[0].startswith("#"):
+                    row[0] = row[0].lstrip("#")
                 headers = row
             else:
                 if len(row)==0 or row[0]=="":
@@ -587,7 +633,7 @@ def writeFasta(seqs, ofh):
         ofh.write(u"\n")
         outCount += 1
 
-    if "name" in dir(ofh):
+    if "name" in dir(ofh): # ofh can be a memory-backed pseudo file, those don't have names
         logging.info("Wrote %d sequences to %s" % (outCount, ofh.name))
 
 def writeMetaTsv(meta, ofh):
@@ -615,7 +661,25 @@ def writeMetaTsv(meta, ofh):
         ofh.write(u"\t".join(vals))
         ofh.write(u"\n")
 
-def metaTransform(meta):
+def addAccs(seqId, seqMeta, accs):
+    """ accs is a dict with isolate or sequence ID -> list of accessions. Add these to seqMeta, is possible """
+    seqAccs = []
+    if seqMeta["isolate"] in accs:
+        seqAccs.extend(accs[seqMeta["isolate"]])
+    if seqId in accs:
+        seqAccs.extend(accs[seqId])
+
+    for acc in seqAccs:
+        if acc.startswith("EPI_"):
+            seqMeta["gisaid_accession"] = acc
+        elif acc.startswith("SAM"): # SAME is ENA, SAMN is NCBI
+            seqMeta["biosample_accession"] = acc
+        else:
+            assert(False) # accession format was not recognized
+
+    return seqMeta
+
+def metaTransform(meta, accs):
     """ convert meta data to a standard format, return as 'seqId' -> dict of 'key:'value'.
     """
     # See https://submit.ncbi.nlm.nih.gov/sarscov2/genbank/
@@ -627,25 +691,27 @@ def metaTransform(meta):
 
     newMeta = dict()
     for seqId, seqMeta in meta.items():
-        ns = OrderedDict()
+        newSeqMeta = OrderedDict()
         for key, val in seqMeta.items():
             if key in metaFieldMap:
                 key = metaFieldMap.get(key, key)
-            ns[key] = val.strip()
+            newSeqMeta[key] = val.strip()
 
         # if there is no isolate field, use the sequence ID
-        if "isolate" not in ns:
-            ns["isolate"] = seqId
+        if "isolate" not in newSeqMeta:
+            newSeqMeta["isolate"] = seqId
 
         # check that the required fields are there - cannot be made in checkBoth(), as the fixers
         # need them
         for field in reqFields:
-            if field not in ns or ns[field]=="":
+            if field not in newSeqMeta or newSeqMeta[field]=="":
                 errAbort("meta data, row '%s': Field %s does not exist or is empty" % (seqId, field))
 
-        fixupIsolate(ns)
+        fixupIsolate(newSeqMeta)
 
-        newMeta[seqId] = ns
+        addAccs(seqId, newSeqMeta, accs)
+
+        newMeta[seqId] = newSeqMeta
 
     return newMeta
 
@@ -895,7 +961,7 @@ def makeGenbankSubXml():
     xml = makeSubXmlDesc(ncbiUser) + """
   <Action>
     <AddFiles target_db="GenBank">
-      <File file_path="ncbiFtp.zip">
+      <File file_path="genbank.zip">
         <DataType>genbank-submission-package</DataType>
       </File>
       <Attribute name="wizard">BankIt_SARSCoV2_api</Attribute>
@@ -908,6 +974,68 @@ def makeGenbankSubXml():
 </Submission>
     """ % locals()
     return xml
+
+def makeBiosampleSubXml(meta):
+    " generate a NCBI submission.xml file for biosamples "
+    cf = getConfig()
+    ncbiUser = cf["ncbiUser"]
+    uniqueId = now()
+    xmls = [makeSubXmlDesc(ncbiUser)]
+
+    for seqId, sampleMeta in meta.items():
+        # make sure an attribute_package is always present
+        if not "attribute_package" in sampleMeta:
+            sampleMeta["attribute_package"] = cf["attribute_package"]
+        if not "bioproject_accession" in sampleMeta:
+            sampleMeta["bioproject_accession"] = "" # this is just so we can generate the file without a config file
+
+        s = """
+<Action>
+<AddData target_db="BioSample">
+  <Data content_type="XML">
+    <XmlContent>
+      <BioSample schema_version="2.0">
+        <SampleId>
+          <SPUID spuid_namespace="ucsc-id">{isolate}</SPUID>
+        </SampleId>
+        <Descriptor>
+          <Description/>
+        </Descriptor>
+        <Organism>
+          <OrganismName>{organism}</OrganismName>
+          <IsolateName>{isolate}</IsolateName>
+        </Organism>
+        <BioProject>
+          <PrimaryId>{bioproject_accession}</PrimaryId>
+        </BioProject>
+        <Package>{attribute_package}</Package>
+        <Attributes>
+        """.format(**sampleMeta)
+
+        xmls.append(s)
+
+        # now output all the attributes
+        for key, val in sampleMeta.items():
+            # Biosample complained via email from Vincent Calhoun that I should not submit these
+            # attributes again, so remove them here. It does not trigger an error or a warning
+            # but they don't like it
+            if not key in ["sample_name", "bioproject_accession", "attribute_package", "organism"]:
+                xmls.append('<Attribute attribute_name="%s">%s</Attribute>\n' % (key, val))
+
+        s = """</Attributes>
+      </BioSample>
+    </XmlContent>
+  </Data>
+  <Identifier>
+    <SPUID spuid_namespace="ucsc-id">%s</SPUID>
+  </Identifier>
+</AddData>
+</Action>\n""" % sampleMeta["isolate"]
+
+        xmls.append(s)
+
+    xmls.append("</Submission>")
+    return "".join(xmls)
 
 def metaToNcbiFtp(meta):
     """ add a few fields that are required for NCBI's ftp upload: organism, country, host
@@ -930,7 +1058,9 @@ def metaToNcbiFtp(meta):
         commentDict["StructuredCommentPrefix"] = "Assembly-Data"
 
         for key, val in metaDict.items():
-            if key in allSourceTags:
+            if key=="BioSample":
+                key = "biosample_accession"
+            elif key in allSourceTags:
                 tagDict[key] = val
             elif key in commentTags:
                 commentDict[key] = val
@@ -953,7 +1083,7 @@ def metaToNcbiFtp(meta):
         if "host" not in tagDict:
             tagDict["host"] = cf["ncbi-host"]
         if not "organism" in tagDict:
-            tagDict["organism"] = "Severe acute respiratory syndrome coronavirus 2"
+            tagDict["organism"] = cf["organism"]
 
         tags[seqId] = tagDict
 
@@ -966,6 +1096,74 @@ def metaToNcbiFtp(meta):
     if commCount == 0:
         comments = None
     return tags, comments
+
+def metaToBiosample(meta):
+    """
+    convert meta data to NCBI biosamples format
+    """
+    bmeta = OrderedDict()
+    cf = getConfig()
+
+    for seqId, metaDict in meta.items():
+        sampleMeta = OrderedDict()
+        sampleMeta["sample_name"] = metaDict["isolate"]
+
+        for bioName in allBioFields:
+            fromField = bioName
+            if bioName=="geo_loc_name":
+                fromField = "country"
+
+            if fromField in metaDict:
+                sampleMeta[bioName] = metaDict[fromField]
+            elif fromField in cf:
+                sampleMeta[bioName] = cf[fromField]
+            else:
+                if bioName in reqBiosFields:
+                    errAbort("sequence %s: field %s is required for the biosample export, but it's not in the input meta "
+                    " nor in ~/.multiSub/config " % (seqId, bioName))
+
+        bmeta[seqId] = sampleMeta
+
+    return bmeta
+
+def metaToSra(meta):
+    """ convert meta data to NCBI SRA format """
+    smeta = OrderedDict()
+    cf = getConfig()
+    for seqId, metaDict in meta.items():
+        newMeta = OrderedDict()
+        if not "biosample_accession" in metaDict or metaDict["biosample_accession"]=="":
+            logging.warn("%s has no biosample accession. Please complete the steps up-biosample and " \
+            "down-biosample first. The file biosampleAccs.tsv will be created and added automatically "
+            "on the next 'conv' run. Skipping SRA export for now. "
+            "Ignore this warning if you did not plan to submit to SRA." % seqId)
+            return None
+
+        for sraName in sraFields:
+            if sraName in metaDict:
+                newMeta[sraName] = metaDict[sraName]
+            elif sraName in cf:
+                newMeta[sraName] = cf[sraName]
+            else:
+                if sraName=="library_ID":
+                    newMeta[sraName] = metaDict["isolate"]
+                else:
+                    errAbort("sequence %s: field %s is required for SRA export, "
+                    "but it's not in the input meta "
+                    " nor in ~/.multiSub/config " % (seqId, sraName))
+
+        # bring over all filename fields
+        for inKey, val in metaDict.items():
+            if inKey.startswith("filename"):
+                newMeta[inKey] = val
+
+        if not "filename" in newMeta:
+            logging.info("SRA export, SeqID '%s': for SRA, a field 'filename' has to be defined. Skipping SRA export")
+            return None
+
+        smeta[seqId] = newMeta
+
+    return smeta
 
 def isoToGisaid(isolate):
     " reformat NCBI isolate string to GISAID format "
@@ -1113,7 +1311,7 @@ def checkBoth(seqs, meta):
             continue
 
         if "-" in seq:
-            logging.warn("Sequence %s contains at least one dash character. Is this intentional?" % seqId)
+            logging.warning("Sequence %s contains at least one dash character. Is this intentional?" % seqId)
             #continue
 
         if " " in seqId:
@@ -1163,25 +1361,21 @@ def connectNcbi(isProd):
     ftp.cwd(dirName)
     return ftp
 
-def upNcbi(zipFname, xmlFname, batchFn, isProd):
-    " upload the zip files onto the genbank ftp server, by default as a testing submission "
-    ftp = connectNcbi(isProd)
+def uploadNcbi(fnames, dataDir, suffix, isProd):
+    " upload files to NCBI and create submit.ready "
+    batchId = getNcbiBatchId(dataDir)
+    subDir = batchId+"-"+suffix
 
-    subDir = now()
+    ftp = connectNcbi(isProd)
     ftp.mkd(subDir)
     ftp.cwd(subDir)
-    logging.info("make directory %s" % subDir)
+    logging.info("Made NCBI FTP subdirectory %s" % subDir)
 
-    logging.info("Uploading "+zipFname)
-    f1 = io.open(zipFname,'rb')
-    zipTargetFn = basename(zipFname)
-    ftp.storbinary('STOR %s' % zipTargetFn, f1)
-    f1.close()
-
-    logging.info("Uploading "+xmlFname)
-    f2 = io.open(xmlFname,'rb')
-    ftp.storbinary('STOR submission.xml', f2)
-    f2.close()
+    for localFname, targetFname in fnames:
+        logging.info("Uploading "+localFname+" to "+targetFname)
+        f1 = io.open(localFname,'rb')
+        ftp.storbinary('STOR %s' % targetFname, f1)
+        f1.close()
 
     logging.info("Creating submit.ready")
     with StringIO() as tmpFh:
@@ -1190,12 +1384,8 @@ def upNcbi(zipFname, xmlFname, batchFn, isProd):
 
     ftp.quit()
 
-    ofh = open(batchFn, "wt") # not unicode, because subdir is a byte string on py2
-    ofh.write(subDir)
-    ofh.close()
-
-    logging.info("Wrote NCBI FTP directory name (=batch name) to %s" % batchFn)
-    logging.info("Wait for some time, then use the 'down-ncbi' command to retrieve the status of this batch")
+    logging.info("Wait for some time, then use the 'down-%s' command to retrieve the status of this batch" %
+        suffix)
 
 def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
     " upload sequences to ENA "
@@ -1219,19 +1409,27 @@ def upEnaSeq(prefix, seqs, meta, asmUrl, accLogFn, auth):
         alias = makeEnaAlias(prefix, seqMeta)
 
         # see https://wwwdev.ebi.ac.uk/ena/submit/webin-cli/swagger-ui/index.html?configUrl=/ena/submit/webin-cli/v3/api-docs/swagger-config
+        coverage = float(seqMeta.get("Genome Coverage", 1.0))
+        program = seqMeta.get("Assembly Method", "unknown")
+        seqTech = seqMeta.get("Sequencing Technology", cf.get("enaPlatform", "unknown"))
+
         data = {
             'name': alias,
             'study': cf["enaProj"],
             'sample': alias,
             'alias': alias,
-            'coverage': 1.0,
-            'program': 'unknown',
-            'platform': cf["enaPlatform"],
+            'coverage': coverage,
+            'program': program,
+            'platform': seqTech,
             'sequence': seq
         }
+
         jsonStr = json.dumps(data, indent=4)
 
         headers = {'accept': 'application/json', 'Content-Type': 'application/json'}
+
+        logging.debug("Sending POST request to %s" % asmUrl)
+        logging.debug("JSON string: %s" % jsonStr)
 
         resp = requests.post(asmUrl, data=jsonStr, auth=auth, headers=headers)
         if resp.status_code != 200:
@@ -1267,7 +1465,8 @@ def makeEnaSubmitXml():
 def makeEnaAlias(prefix, seqMeta):
     " make a valid seq alias from the meta data dict "
     # bug in ENA API: alias cannot contain slashes
-    alias = prefix+seqMeta["isolate"].replace("/", "").replace("-", "")
+    #alias = prefix+seqMeta["isolate"].replace("/", "").replace("-", "")
+    alias = prefix+seqMeta["isolate"]
     return alias
 
 def writeEnaXml(meta, ofh, prefix):
@@ -1353,30 +1552,35 @@ def upEna(sampleFname, seqFname, metaFname, seqLog, sampleLogFn, accLogFn, prefi
     seqUpUrl = baseUrl + "webin-cli/api/v1/genome/covid-19"
     upEnaSeq(prefix, seqs, meta, seqUpUrl, accLogFn, auth)
 
-def downNcbi(ncbiBatchFn, isProd, outFname):
-    " download NCBI status file "
-    seqsFname = join(dirname(ncbiBatchFn), "seqs.fa")
-    if not isfile(seqsFname):
-        errAbort("%s does not exist. Sure that %s contains the output of a 'conv' or 'convDir' run?" \
-            % (seqsFname, dirname(seqsFname)))
-
-    if not isfile(ncbiBatchFn):
-        errAbort("%s does not exist. You need to run up-ncbi succesfully once before "
-            "you can run down-ncbi." % ncbiBatchFn)
-
-    ncbiBatch = io.open(ncbiBatchFn).read()
-    logging.info("Read previous NCBI batch ID from %s: '%s'" % (ncbiBatchFn, ncbiBatch))
-
+def downNcbi(outDir, isProd, dbType):
+    " download NCBI status file, returns list of files downloaded "
+    ncbiBatch = getNcbiBatchId(outDir)+"-"+dbType
     ftp = connectNcbi(isProd)
     logging.info("CWD %s" % ncbiBatch)
     ftp.cwd(ncbiBatch)
 
     import ftplib
-    try:
-        ftp.retrbinary("RETR " + "report.1.xml", open(outFname, 'wb').write)
-        logging.info("Created %s" % outFname)
-    except ftplib.error_perm as ex:
-        logging.warning("NCBI results are not ready yet. %s" % ex)
+
+    fnames = ftp.nlst()
+    outFnames = []
+    for fname in fnames:
+        if not fname.startswith("report"):
+            continue
+        logging.info("Downloading %s", fname)
+        outFname = join(outDir, dbType+"-"+fname)
+        outFnames.append(outFname)
+        try:
+            ftp.retrbinary("RETR " + fname, open(outFname, 'wb').write)
+            logging.info("Created %s" % outFname)
+        except ftplib.error_perm as ex:
+            logging.warning("Cannot download %s. Error %s" % (fname, ex))
+
+    if len(outFnames)==0:
+        logging.info("No NCBI job status files yet. Please wait some more, then retry.")
+        sys.exit(1)
+    else:
+        logging.info("Downloaded %d files into %s" % (len(outFnames), outDir))
+    return outFnames
 
 def init():
     " download the config files into ~/.multiSub "
@@ -1394,8 +1598,7 @@ def init():
         logging.info("No need to download config file, %s already exists" % cfgName)
         return
 
-    cfgUrl = join(homeUrl, "config")
-    httpDownload(cfgUrl, cfgName)
+    httpDownload(configUrl, cfgName)
 
 def findFiles(inDir):
     " look for fasta and tsv/csv/xls files in inDir and return as two lists, faFnames and metaFnames "
@@ -1411,7 +1614,46 @@ def findFiles(inDir):
 
     return faFnames, metaFnames
 
-def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
+def readAccs(accFnames):
+    " read biosample or similar table file and return sample_name -> accession "
+    if accFnames is None:
+        return {}
+
+    ret = defaultdict(set)
+    for accFname in accFnames:
+        headers, rows = parseTable(accFname)
+        accIdx = headers.index("accession")
+        if "sample_name" in headers:
+            sampleIdx = headers.index("sample_name")
+        else:
+            sampleIdx = headers.index("isolate")
+
+        for row in rows:
+            acc = row[accIdx]
+            sample = row[sampleIdx]
+            ret[sample].add(acc)
+    logging.info("Read accessions for %d sample names from %s" % (len(ret), repr(accFnames)))
+    return ret
+
+def mergeMeta(meta, newMeta):
+    " merge two dictionaries of seqId -> fieldName -> value. Warn when key already exists "
+    for seqId, newSeqMeta in newMeta.items():
+        if not seqId in meta:
+            meta[seqId] = OrderedDict()
+        seqMeta = meta[seqId]
+
+        for fieldName, val in newSeqMeta.items():
+            if fieldName=="Sequence_ID":
+                continue
+            if fieldName in seqMeta:
+                oldVal = seqMeta[fieldName]
+                logging.warning("a field '%s' already exists for %s with value %s. "
+                "Overriding with value %s obtained from second meta file. " %
+                (fieldName, seqId, oldVal, val))
+            seqMeta[fieldName] = val
+    return meta
+
+def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFiles):
     " convert input files to outDir "
     seqs = []
     for faFn in faFnames:
@@ -1419,11 +1661,22 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
 
     meta = dict()
     for metaFn in metaFnames:
-        meta.update( readMeta(metaFn) )
+        if accFiles and metaFn in accFiles:
+            logging.debug("Skipping input meta file %s, is an accession table" % metaFn)
+            continue
+        newMeta = readMeta(metaFn)
+        mergeMeta(meta, newMeta)
 
     logging.info("Read %d sequences and %d annotation rows" % (len(seqs), len(meta)))
 
-    meta = metaTransform(meta)
+    accs = {}
+    biosAccFname = join(outDir, "biosampleAccs.tsv")
+    if isfile(biosAccFname):
+        accFiles.append( biosAccFname )
+
+    accs = readAccs(accFiles)
+
+    meta = metaTransform(meta, accs)
 
     seqs, meta = checkBoth(seqs, meta)
 
@@ -1434,7 +1687,7 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
         os.mkdir(outDir)
         logging.info("Created directory %s" % outDir)
 
-    # always create a raw fasta and imported tsv
+    # always create a raw fasta and tsv after data import
     seqFn = join(outDir, "seqs.fa")
     writeFasta(seqs, io.open(seqFn, "wt"))
     # raw meta file
@@ -1448,8 +1701,8 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
             gbOutFn = join(outDir, "ncbiSeqAndSource.fa")
             writeGenbankTagFa(seqs, sourceTags, gbOutFn)
         if "ncbi-ftp" in outFmts:
-            zipFname = join(outDir, "ncbiFtp.zip")
-            xmlFname = join(outDir, "submission.xml")
+            zipFname = join(outDir, "genbank.zip")
+            xmlFname = join(outDir, "genbank.xml")
             writeGenbankFtpZip(seqs, sourceTags, comments, zipFname, xmlFname)
 
     if "gisaid" in outFmts:
@@ -1461,6 +1714,25 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix):
         sampleFn = join(outDir, "ena.xml")
         writeEnaXml(meta, io.open(sampleFn, "wt"), enaPrefix)
 
+    if "biosample" in outFmts:
+        sampleFn = join(outDir, "biosample.tsv")
+        bioMeta = metaToBiosample(meta)
+        writeMetaTsv(bioMeta, io.open(sampleFn, "wt"))
+        logging.info("Wrote %s" % sampleFn)
+
+        xmlFn = join(outDir, "biosample.xml")
+        xmlStr = makeBiosampleSubXml(bioMeta)
+        with open(xmlFn, "w") as ofh:
+            ofh.write(xmlStr)
+        logging.info("Wrote %s" % xmlFn)
+
+    if "sra" in outFmts:
+        sampleFn = join(outDir, "sra.tsv")
+        sraMeta = metaToSra(meta)
+        if not sraMeta is None:
+            writeMetaTsv(sraMeta, io.open(sampleFn, "wt"))
+            logging.info("Wrote %s" % sampleFn)
+
 def runCmd(cmd):
     " output and run command "
     logging.info("Running command: %s" % (" ".join(cmd)))
@@ -1469,12 +1741,122 @@ def runCmd(cmd):
 def upGisaid(faFname, csvFname, failFname):
     " upload files to GISAID via their interface "
     scriptFname = getConfigFname("gisaid-uploader")
-    # for some reason, native Python https is blocked on this webserver, but curl works.
-    runCmd(["curl", "https://www.epicov.org/content/gisaid_uploader", "-o", scriptFname])
+    if not isfile(scriptFname):
+        # for some reason, native Python https is blocked on this webserver, but curl works.
+        runCmd(["curl", "https://www.epicov.org/content/gisaid_uploader", "-o", scriptFname])
+    else:
+        logging.info("File %s already exists, not downloading again from epicov.org" % scriptFname)
 
     cmd = ["python3", scriptFname, "CoV", "upload", "--fasta", faFname, "--csv", csvFname,
         "--failedout", failFname]
     runCmd(cmd)
+
+def getNcbiBatchId(dataDir):
+    " return the ncbi batch ID for a given directory or make a new one "
+    ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
+    if not isfile(ncbiBatchFn):
+        subDir = now()
+        ofh = io.open(ncbiBatchFn, "wt")
+        ofh.write(subDir)
+        ofh.close()
+        logging.info("Wrote NCBI FTP directory name '%s' (=batch name) to %s" % (subDir, ncbiBatchFn))
+    else:
+        ifh = io.open(ncbiBatchFn) # not unicode, because subdir is a byte string on py2
+        subDir = ifh.read()
+        ifh.close()
+        logging.info("Read NCBI FTP directory name (=batch name) from %s: %s" % (ncbiBatchFn, subDir))
+
+    dirName = subDir.strip()
+    assert(len(dirName)!=0)
+    return dirName
+
+def parseNcbiReport(dataDir, targetDb, reqDb=None):
+    from xml.dom import minidom
+    if reqDb is None:
+        reqDb=targetDb
+    repFname = join(dataDir, targetDb+"-report.xml")
+    xmlText = io.open(repFname, "rt").read()
+    logging.info("Parsing NCBI XML Pipeline report %s" % repFname)
+    if not 'status="processed-ok"' in xmlText:
+        errAbort('The NCBI XML report %s does not contain the string status="processed-ok". This could be '
+        ' due to an error or because the entire input has not been processed yet. '
+        ' Please check the file %s and possibly re-run the download command. ' % repFname)
+    doc = minidom.parse(io.open(repFname))
+    accs = {}
+    if targetDb == "biosample":
+        objs = doc.getElementsByTagName("Object")
+        #<Object target_db="BioSample" object_id="20192715" status="new" last_update="2021-07-13T10:06:07.130" accession="SAMN20192715" spuid="SARS-CoV-2/human/USA/CA-UCSC-252/2021" spuid_namespace="ucsc-id">
+        for o in objs:
+            db = o.getAttribute("target_db")
+            if db.lower() != reqDb.lower():
+                errAbort("The database in %s is not the expected database '%s'" % (db, targetDb))
+            acc = o.getAttribute("accession")
+            spuid = o.getAttribute("spuid")
+            if acc=="":
+                continue
+            accs[spuid] = acc
+        logging.info("Found %d accessions in %s" % (len(accs), repFname))
+    elif targetDb=="genbank":
+        # <File file_id="hcdoudov/accessionreport.tsv" file_path="AccessionReport.tsv"/>
+        objs = doc.getElementsByTagName("File")
+        for o in objs:
+            fileId = o.getAttribute("file_id")
+            filePath = o.getAttribute("file_path")
+            fullPath = join(dataDir, filePath)
+            url = join('https://submit.ncbi.nlm.nih.gov/api/2.0/files/%s/?format=attachment' % fileId)
+            httpDownload(url, fullPath)
+
+            if filePath=="AccessionReport.tsv":
+                headers, rows = parseTable(fullPath)
+                # #Accession      Sequence ID     Release Date
+                # MZ569991        hCoV-19/USA/CA-UCSC-537/2020    immediate
+                accIdx = headers.index("Accession")
+                seqIdIdx = headers.index("Sequence ID")
+                for row in rows:
+                    accs[row[seqIdIdx]] = row[accIdx]
+
+    return accs
+
+def writeAccessions(accs, dataDir, dbType):
+    " write dict to two-column tsv fname "
+    fname = join(dataDir, dbType+"Accs.tsv")
+    if len(accs)==0:
+        logging.warning("Got no accessions, not creating %s" % fname)
+        return
+
+    metaFname = join(dataDir, "meta.tsv")
+    meta = readMetaText(metaFname)
+
+    writeCount = 0
+    notFound = list()
+    with io.open(fname, "wt") as ofh:
+        ofh.write("#seqId\tisolate\taccession\n")
+        for seqId, seqMeta in meta.items():
+            # biosample does not have the concept of sequence identifier: use the isolates
+            if dbType=="biosample":
+                inId = seqMeta["isolate"]
+            elif dbType=="genbank":
+                inId = seqId
+
+            if inId in accs:
+                acc = accs[inId]
+                ofh.write("%s\t%s\t%s\n" % (seqId, seqMeta["isolate"], acc))
+                writeCount +=1
+            else:
+                notFound.append(seqId)
+
+    logging.info("Got %d accessions. Wrote %d accessions to %s" % (len(accs), writeCount, fname))
+    if len(notFound)!=0:
+        logging.warning("These seqIds got no accession (=rejected): %s" % repr(notFound))
+        faFname = join(dataDir, "seqs.fa")
+        errFname = join(dataDir, dbType+"-rejected.fa")
+        notFound = set(notFound)
+        notFoundSeqs = []
+        for seqId, seq in parseFasta(faFname):
+            if seqId in notFound:
+                notFoundSeqs.append( (seqId, seq) )
+        notFoundOfh = io.open(errFname, "wt")
+        writeFasta(notFoundSeqs, notFoundOfh)
 
 def main():
     args, options = parseArgs()
@@ -1483,35 +1865,48 @@ def main():
 
     outFmts = getFormats(options.format)
     prefix = options.prefix
+    isProd = options.prod
 
     if cmd=="init":
         init()
 
     elif cmd=="conv" or cmd=="convert":
-        faFname, metaFname, outDir = args[1:]
+        faFname = args[1]
+        metaFnames = args[2:-1]
+        outDir = args[-1]
         if faFname.endswith(".xls") or faFname.endswith(".csv") or faFname.endswith(".tsv"):
             errAbort("The order of the arguments is: fasta file first, meta file next. You seem to have "
                     "provided them in the opposite order")
-        convFiles([faFname], [metaFname], outDir, outFmts, options.skipFile, options.prefix)
+
+        convFiles([faFname], metaFnames, outDir, outFmts, options.skipFile, options.prefix, options.accFiles)
 
     elif cmd=="convDir":
         inDir, outDir = args[1:]
         faFnames, metaFnames = findFiles(inDir)
-        convFiles(faFnames, metaFnames, outDir, outFmts, options.skipFile, options.prefix)
+        convFiles(faFnames, metaFnames, outDir, outFmts, options.skipFile, options.prefix, options.accFiles)
 
-    elif cmd=="up-ncbi":
+    elif cmd=="up-genbank":
         dataDir = args[1]
-        zipFname = join(dataDir, "ncbiFtp.zip")
-        xmlFname = join(dataDir, "submission.xml")
-        ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
+        fnames = [(join(dataDir, "genbank.zip"), "genbank.zip"),
+            (join(dataDir, "genbank.xml"), "submission.xml")]
+        uploadNcbi(fnames, dataDir, "genbank", isProd)
 
-        upNcbi(zipFname, xmlFname, ncbiBatchFn, options.prod)
-
-    elif cmd=="down-ncbi":
+    elif cmd=="up-biosample":
         dataDir = args[1]
-        ncbiBatchFn = join(dataDir, "lastNcbiBatch.txt")
-        ncbiAccFn = join(dataDir, "ncbiReport.xml")
-        downNcbi(ncbiBatchFn, options.prod, ncbiAccFn)
+        fnames = [(join(dataDir, "biosample.xml"), "submission.xml")]
+        uploadNcbi(fnames, dataDir, "biosample", isProd)
+
+    elif cmd=="down-biosample":
+        dataDir = args[1]
+        downNcbi(dataDir, isProd, "biosample")
+        accs = parseNcbiReport(dataDir, "biosample")
+        writeAccessions(accs, dataDir, "biosample")
+
+    elif cmd=="down-genbank" or cmd=="down-ncbi":
+        dataDir = args[1]
+        downNcbi(dataDir, isProd, "genbank")
+        accs = parseNcbiReport(dataDir, "genbank", reqDb="nuccore")
+        writeAccessions(accs, dataDir, "genbank")
 
     elif cmd=="up-ena":
         dataDir = args[1]
@@ -1526,14 +1921,18 @@ def main():
 
         upEna(xmlFname, seqFname, metaFname, seqLog, sampleLog, accLog, prefix, options.prod)
 
+    #elif cmd=="down-ena":
+        # TODO: need to resolve ENA accessions to INSDC accessions, see email from ENA helpdesk
+        # Use this API URL: https://www.ebi.ac.uk/ena/xref/rest/tsv/search?source=Analysis&target=sequence&source_accession=ERZ2775457
+
     elif cmd=="up-gisaid":
         outDir = args[1]
         gisaidSeqFn = join(outDir, "gisaid.fa")
         gisaidMetaFn = join(outDir, "gisaid.csv")
-        gisaidReportFn = join(outDir, "gisaidReport.txt")
+        gisaidReportFn = join(outDir, "gisaidFail.txt")
         upGisaid(gisaidSeqFn, gisaidMetaFn, gisaidReportFn)
 
     else:
-        errAbort("Unknown command: %s. Must be one of conv, convDir, up-ena, up-gisaid, up-ncbi, down-ncbi" % cmd)
+        errAbort("Unknown command: %s. Must be one of conv, convDir, up-ena, up-gisaid, up-genbank, up-biosamples, down-biosample, down-genbank" % cmd)
 
 main()
