@@ -156,9 +156,10 @@ files for NCBI and GISAID into mySub/:
 There are four types of possible field names for the meta data:
 
 1) the minimal ones: "isolate", "date" (alias "collection_date") and "location" (alias "country")
-2) the following GISAID field names: covv_collection_date, covv_virus_name, covv_location, covv_assembly_method, covv_coverage, covv_seq_technology
+2) the following GISAID field names: covv_collection_date, covv_virus_name, covv_location, covv_assembly_method, covv_coverage, covv_seq_technology. Additional fields that are accepted in the input file and converted to GISAID fields are: addHost, gender, age, specimen, status, outbreak, last_vaccinated, treatment, coverage, sampleId, sub_lab_sample_id
 3) NCBI source tags, listed here: https://www.ncbi.nlm.nih.gov/WebSub/html/help/genbank-source-table.html, most importantly isolate, collection_date and country (misnomer, it usually includes region and town)
 4) the NCBI Structured comment field names: "Assembly Name", "Assembly Method", "Genome Coverage", "Sequencing Technology", see: https://www.ncbi.nlm.nih.gov/genbank/structuredcomment
+5) For ENA, *all* fields are written to the Biosample. A few special names from the input file are converted to ENA required fields which are otherwise set to empty or default values: age -> 'host sex', 'status' -> 'host health state', 'subject' -> 'host subject id'. All others are passed through to ENA Biosample.
 
 You can also rename any of your own input fields with other names but similar
 content to the NCBI names using the name mapping table in the configuration

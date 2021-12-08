@@ -1246,14 +1246,19 @@ def writeGisaid(seqs, meta, seqFn, metaFn):
             location = cf["gisaidLocation"]
         addLocation = ""
         host = "Human"
-        addHost = ""
-        gender = "unknown"
-        age = "unknown"
-        status = "unknown"
-        specimen = ""
-        outbreak = ""
-        last_vaccinated = ""
-        treatment = ""
+
+        addHost = metaDict.get("addHost", "")
+        gender = metaDict.get("gender", "unknown")
+        age = metaDict.get("age", "unknown")
+        specimen = metaDict.get("specimen", "")
+        status = metaDict.get("status", "unknown")
+        outbreak = metaDict.get("outbreak", "")
+        last_vaccinated = metaDict.get("last_vaccinated", "")
+        treatment = metaDict.get("treatment", "")
+        coverage = metaDict.get("coverage", "")
+        sampleId = metaDict.get("sampleId", "")
+        subm_lab_sample_id = metaDict.get("subm_lab_sample_id", "")
+
         if "gisaid_technology" in cf:
             technology = cf["gisaid_technology"]
         else:
@@ -1264,13 +1269,11 @@ def writeGisaid(seqs, meta, seqFn, metaFn):
         else:
             assembly_method = ""
 
-        coverage = ""
+
         orig_lab = cf["gisaid_orig_lab"]
         orig_lab_addr = cf["gisaid_orig_lab_addr"]
-        sampleId = ""
         subm_lab = cf["gisaid_orig_lab"]
         subm_lab_addr = cf["gisaid_orig_lab_addr"]
-        subm_lab_sample_id = ""
 
         auStrs = []
         for au in cf["authors"]:
@@ -1503,11 +1506,18 @@ def writeEnaXml(meta, ofh, prefix):
             u"host common name" : host,
             u"sample capture status" : u"active surveillance in response to outbreak",
             u"host scientific name" : u"Homo sapiens",
-            u"host subject id" : seqId, # not correct, but we have no other identifier
-            u"host health state" : u"diseased",
-            u"host sex" : u"not provided",
+            u"host subject id" : seqMeta.get("subject", seqId), # seqId, not correct, but we have no other identifier
+            u"host health state" : seqMeta.get("status", u"diseased")
+            u"host sex" : seqMeta.get("gender", u"not provided")
             u"isolate" : seqMeta["isolate"],
         }
+
+        skipAttrs = ["gender", "subject", "status", "isolate", "collection_date"]
+
+        # merge all the metaDict attributes into the ENA attributes: we pass everything through here
+        for key, val in seqMeta.items():
+            if key not in skipAttrs:
+                attributes[key] = val
 
         for tag, value in attributes.items():
             ofh.write(u'      <SAMPLE_ATTRIBUTE>')
