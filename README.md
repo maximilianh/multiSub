@@ -4,8 +4,9 @@ multiSub is a command-line tool to prepare and/or submit a SARS-CoV-2 genome
 sequence to the NCBI Genbank, EBI ENA and GISAID sequence repositories. It can also
 convert between these formats. This tool can be used by a "data
 broker", a single institution that collects sequences from labs and submits
-them to the sequence databases or it can be used by an individual lab. It's early research software, you will probably 
-find bugs, please open a ticket on Github or email maxh@ucsc.edu if that happens, most of them
+them to the sequence databases or it can be used by an individual lab. It's research software, but 
+several groups use it. When you use it for the first time on your own data, you may find 
+find bugs or problems, for non-example data. Please open a ticket on Github or email maxh@ucsc.edu if that happens, most of them
 should be easy to fix now.
 
 ## Overview
