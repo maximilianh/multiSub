@@ -1942,6 +1942,9 @@ def main():
         gisaidReportFn = join(outDir, "gisaidFail.txt")
         upGisaid(gisaidSeqFn, gisaidMetaFn, gisaidReportFn)
 
+    elif cmd=="up-sra":
+        outDir = args[1]
+
     else:
         errAbort("Unknown command: %s. Must be one of conv, convDir, up-ena, up-gisaid, up-genbank, up-biosamples, down-biosample, down-genbank" % cmd)
 
