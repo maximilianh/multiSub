@@ -31,7 +31,7 @@ from io import StringIO # python2.6 and 3
 isPy2 = (sys.version_info.major == 2)
 
 # all possible values for the --format option
-allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena", "biosample"]
+allFmts = ["ncbi", "ncbi-ftp", "gisaid", "ena", "biosample", "sra"]
 
 # when importing csv/tsv/xls files, use the following translation table to our internal annotation format
 # I use NCBI's source tag definition for now for the internal storage
@@ -1132,12 +1132,12 @@ def metaToSra(meta):
     cf = getConfig()
     for seqId, metaDict in meta.items():
         newMeta = OrderedDict()
-        #if not "biosample_accession" in metaDict or metaDict["biosample_accession"]=="":
-            #logging.warn("%s has no biosample accession. Please complete the steps up-biosample and " \
-            #"down-biosample first. The file biosampleAccs.tsv will be created and added automatically "
-            #"on the next 'conv' run. Skipping SRA export for now. "
-            #"Ignore this warning if you did not plan to submit to SRA." % seqId)
-            #return None
+        if not "biosample_accession" in metaDict or metaDict["biosample_accession"]=="":
+            logging.warn("%s has no biosample accession. Please complete the steps up-biosample and " \
+            "down-biosample first. The file biosampleAccs.tsv will be created and added automatically "
+            "on the next 'conv' run. Skipping SRA export for now. "
+            "Ignore this warning if you did not plan to submit to SRA." % seqId)
+            return None
 
         for sraName in sraFields:
             if sraName in metaDict:
