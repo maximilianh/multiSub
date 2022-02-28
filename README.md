@@ -188,14 +188,29 @@ Convert your submission files into the NCBI FTP format:
 
     ./multiSub conv mySeqs.fa mySeqs.tsv mySub -f ncbi-ftp
 
-Upload sequences in mySub/ to the NCBI FTP server as a test submission:
+Upload sequences in mySub/ to the NCBI FTP server as a test Biosamples submission:
+
+    ./multiSub up-biosample mySub
+    
+Wait for a few minutes. Then:
+
+    ./multiSub down-biosample mySub
+
+If everything goes well, there should be now a new file mySub/biosampleAccs.tsv
+
+Convert your submission files again, this run will find the file mySub/biosampleAccs.tsv and 
+will add the accessions to the meta.tsv output and all other files:
+
+    ./multiSub conv mySeqs.fa mySeqs.tsv mySub
+
+Upload sequences in mySub/ to the NCBI FTP server as a test Biosamples submission:
 
     ./multiSub up-genbank mySub
     
 Wait for a few hours. Retrieve the status and accessions of your submission
 and write them to the file mySub/ncbiReport.xml
 
-    ./multiSub down-ncbi mySub
+    ./multiSub down-genbank mySub
     
 Upload sequences in mySub/ to the NCBI FTP server as a real submission:
 
