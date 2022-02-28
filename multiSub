@@ -210,7 +210,7 @@ def parseArgs():
         "identifier of sequences to remove. Can be the raw NCBI error report text file. These "
         "sequences and their annotations will be skipped during the convert step.")
     parser.add_option("-a", "--accs", dest="accFiles",
-        action="append", help="File with accessions. Can be in biosample tsv format. parsed fields are 'sample_name' or 'isolate' and 'accession'. Can be used multiple times (e.g. to provide one GISAID file and also the Biosamples file)")
+        action="append", help="File with accessions. Can be in biosample tsv format. parsed fields are 'sample_name' or 'isolate' and 'accession'. Can be used multiple times (e.g. to provide one GISAID file and also the Biosamples file)", default=[])
     parser.add_option("-f", "--format", dest="format", action="store",
         default="all",
         help="comma-separated list of output formats to generate. Can be: %s or 'all'" % ",".join(allFmts))
@@ -378,7 +378,8 @@ def readMetaGisaid(fname):
     fields: collection_date, isolate and country. 'location' is rewritten to
     comply with NCBI rules. """
 
-    if fname.lower().endswith(".xls"):
+    lowFname = fname.lower()
+    if lowFname.endswith(".xls") or lowFname.endswith(".xlsx"):
         headers, rows = parseTableXls(fname)
     else:
         headers, rows = parseTable(fname)
@@ -459,7 +460,8 @@ def readMeta(fname):
     -> OrderedDict of 'key':'value' Standardize field names to: date and
     isolate
     """
-    if fname.endswith(".xls"):
+    lowFname = fname.lower()
+    if lowFname.endswith(".xls") or lowFname.endswith(".xlsx"):
         meta = readMetaGisaid(fname)
     else:
         meta = readMetaText(fname)
@@ -506,7 +508,15 @@ def parseTableXls(fname):
     logging.info("Parsing xls file '%s'" % fname)
 
     book = open_workbook(fname,on_demand=True)
-    sheet = book.sheet_by_index(1)
+    try:
+        sheet = book.sheet_by_index(1)
+    except IndexError:
+        sheet = book.sheet_by_index(0)
+    else:
+        logging.error("Cannot open sheet 1 or sheet 0 in Excel input file. GISAID files have two sheets by default, one with instructions, "
+            "one with the table, but sometimes labs delete the first sheet.")
+        assert(False)
+
     headers = [sheet.col_values(i)[0] for i in range(sheet.ncols) if sheet.col_values(i)[0]]
 
     rows = []
@@ -1566,7 +1576,7 @@ def findFiles(inDir):
         path = join(inDir, fname)
         if ext in ["fasta", "fsa", "fa"]:
             faFnames.append(path)
-        if ext in ["tab", "src", "tsv", "csv", "xls"]:
+        if ext in ["tab", "src", "tsv", "csv", "xls", "xslx"]:
             metaFnames.append(path)
 
     return faFnames, metaFnames
@@ -1586,7 +1596,7 @@ def readAccs(accFnames):
             acc = row[accIdx]
             sample = row[sampleIdx]
             ret[sample].add(acc)
-    logging.info("Read accessions for %d sample names from %s" % (len(ret), repr(accFnames)))
+    logging.info("Read biosample/SRA/sample (or similar db) accessions for %d sample names from %s" % (len(ret), repr(accFnames)))
     return ret
 
 def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFiles):
@@ -1604,6 +1614,7 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFil
     accs = {}
     biosAccFname = join(outDir, "biosampleAccs.tsv")
     if isfile(biosAccFname):
+        logging.debug("Found %s" % bioxAccFname )
         accFiles.append( biosAccFname )
 
     accs = readAccs(accFiles)
@@ -1793,12 +1804,14 @@ def main():
         init()
 
     elif cmd=="conv" or cmd=="convert":
-        faFname, metaFname, outDir = args[1:]
-        if faFname.endswith(".xls") or faFname.endswith(".csv") or faFname.endswith(".tsv"):
-            errAbort("The order of the arguments is: fasta file first, meta file next. You seem to have "
+        faFnames = args[1:-2]
+        metaFname = args[-2]
+        outDir = args[-1]
+        if faFnames[0].endswith(".xls") or faFnames[0].endswith(".csv") or faFnames[0].endswith(".tsv"):
+            errAbort("The order of the arguments is: fasta file(s) first, meta file next. You seem to have "
                     "provided them in the opposite order")
 
-        convFiles([faFname], [metaFname], outDir, outFmts, options.skipFile, options.prefix, options.accFiles)
+        convFiles(faFnames, [metaFname], outDir, outFmts, options.skipFile, options.prefix, options.accFiles)
 
     elif cmd=="convDir":
         inDir, outDir = args[1:]
