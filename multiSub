@@ -1701,6 +1701,10 @@ def convFiles(faFnames, metaFnames, outDir, outFmts, skipFile, enaPrefix, accFil
 
     seqs, meta = checkBoth(seqs, meta)
 
+    if len(seqs)==0:
+        errAbort("No sequence left after filtering. Please make sure that the sequence identifiers in the FASTA files match the "
+                "identifiers in the meta data annotation tables.")
+
     if skipFile:
         seqs, meta, skipSeqs, skipMeta = filterBoth(skipFile, seqs, meta)
 
@@ -1898,6 +1902,7 @@ def main():
         if faFname.endswith(".xls") or faFname.endswith(".csv") or faFname.endswith(".tsv") or faFname.endswith(".xlsx"):
             errAbort("The order of the arguments is: fasta file first, meta file next. You seem to have "
                     "provided them in the opposite order")
+        convFiles([faFname], metaFnames, outDir, outFmts, options.skipFile, options.prefix, options.accFiles)
 
     elif cmd=="convDir":
         inDir, outDir = args[1:]
