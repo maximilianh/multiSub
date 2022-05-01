@@ -749,7 +749,7 @@ def makeGenbankTagSeqs(seqs, meta):
 
         isolate = seqMeta["isolate"]
         orgLong = cf.get("longOrg", "Severe acute respiratory syndrome coronavirus 2")
-        title = orgLong + "isolate %s, complete genome" % isolate
+        title = orgLong + ", isolate %s, complete genome" % isolate
 
         tagsStrs = []
         for key, val in seqMeta.items():
