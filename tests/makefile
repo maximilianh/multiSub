@@ -31,6 +31,9 @@ test-combine: mkdir
 test-kelsey: mkdir
 	../multiSub conv kelsey/test.fa kelsey/test.csv out/kelsey
 
+# an influenza sequence
+test-biopig:
+	../multiSub conv biopig/seq.fa biopig/meta.tsv out/biopig
 
 up-ncbi:
 	../multiSub up-ncbi out/gisaid1/
@@ -43,3 +46,4 @@ up-ena:
 
 up-gisaid:
 	../multiSub up-gisaid expected/gisaid1/
+

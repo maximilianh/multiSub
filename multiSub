@@ -361,8 +361,10 @@ def fixupIsolate(metaDict):
         errAbort("Isolate format '%s' contains slashes but is not NCBI, GISAID or SPHERES format. "
             "Extend fixupIsolate() in %s" % (isolate, __file__))
 
-    virus = "SARS-CoV-2"
-    newIso = "/".join((virus, "human", country, identifier, year))
+    #virus = "SARS-CoV-2"
+    virus = getConfig().get("organism", "SARS-CoV-2")
+    host = metaDict.get("host", "human")
+    newIso = "/".join((virus, host, country, identifier, year))
 
     metaDict["isolate"] = newIso
 
@@ -441,8 +443,8 @@ def checkDate(dateStr):
     month = int(month.strip())
     day = int(day.strip())
     note = " Note that input date must look like 2019-12-30"
-    if not year > 2019:
-        errAbort(("Meta data row for '%s': year must be > 2019."+note) % seqId)
+    #if not year > 2019:
+        #errAbort(("Meta data row for '%s': year must be > 2019."+note) % seqId)
     if not month > 0 and not month < 13 :
         errAbort(("Meta data row for '%s': month must be > 0 and < 13."+note) % seqId)
     if not day > 0 and not day <= 31 :
@@ -730,6 +732,7 @@ def makeGenbankTagSeqs(seqs, meta):
     seq)
     """
     trimSeqCount = 0
+    cf = getConfig()
 
     newSeqs = []
     for seqId, seq in seqs:
@@ -745,8 +748,8 @@ def makeGenbankTagSeqs(seqs, meta):
             continue
 
         isolate = seqMeta["isolate"]
-        title = "Severe acute respiratory syndrome coronavirus 2 " \
-                "isolate %s, complete genome" % isolate
+        orgLong = cf.get("longOrg", "Severe acute respiratory syndrome coronavirus 2")
+        title = orgLong + "isolate %s, complete genome" % isolate
 
         tagsStrs = []
         for key, val in seqMeta.items():

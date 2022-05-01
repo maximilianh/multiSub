@@ -12,6 +12,10 @@ ncbiCountry = "USA"
 # alternative email address, only used for NCBI submissions and not required
 # altEmail = "johndoe@gmail.com"
 
+# only uncomment the following if you do not work with SARS-CoV-2 samples
+#organism = "Influenza A virus"
+#longOrg = "Influenza A virus" # for the Genbank title
+
 affiliation = {
 "affil" : "University of California, Santa Cruz",
 "div" : "Genomics Institute",
